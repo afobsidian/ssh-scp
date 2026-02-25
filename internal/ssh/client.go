@@ -13,6 +13,7 @@ import (
 
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // RemoteFile represents a file entry on the remote filesystem.
@@ -67,6 +68,44 @@ func PubKeyAuth(keyPath string) (ssh.AuthMethod, error) {
 		return nil, err
 	}
 	return ssh.PublicKeys(signer), nil
+}
+
+// AgentAuth returns an AuthMethod that delegates to the running ssh-agent.
+// Returns nil, err if SSH_AUTH_SOCK is not set or the agent is unreachable.
+func AgentAuth() (ssh.AuthMethod, error) {
+	sock := os.Getenv("SSH_AUTH_SOCK")
+	if sock == "" {
+		return nil, fmt.Errorf("SSH_AUTH_SOCK not set")
+	}
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		return nil, fmt.Errorf("connect to ssh-agent: %w", err)
+	}
+	// Note: we intentionally don't close conn here — the agent connection
+	// must remain open for the lifetime of the SSH session.
+	agentClient := agent.NewClient(conn)
+	return ssh.PublicKeysCallback(agentClient.Signers), nil
+}
+
+// DefaultKeyPaths returns common private key file paths that exist on disk.
+func DefaultKeyPaths() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	candidates := []string{
+		filepath.Join(home, ".ssh", "id_rsa"),
+		filepath.Join(home, ".ssh", "id_ed25519"),
+		filepath.Join(home, ".ssh", "id_ecdsa"),
+		filepath.Join(home, ".ssh", "id_dsa"),
+	}
+	var found []string
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			found = append(found, p)
+		}
+	}
+	return found
 }
 
 // Close closes the SSH connection.

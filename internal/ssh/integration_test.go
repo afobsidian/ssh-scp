@@ -54,25 +54,25 @@ func testSSHServer(t *testing.T) (addr string, cleanup func()) {
 	}()
 
 	return ln.Addr().String(), func() {
-		ln.Close()
+		_ = ln.Close()
 		<-done
 	}
 }
 
 func handleConn(conn net.Conn, config *ssh.ServerConfig) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, config)
 	if err != nil {
 		return
 	}
-	defer sshConn.Close()
+	defer func() { _ = sshConn.Close() }()
 
 	go ssh.DiscardRequests(reqs)
 
 	for newChan := range chans {
 		if newChan.ChannelType() != "session" {
-			newChan.Reject(ssh.UnknownChannelType, "unknown channel type")
+			_ = newChan.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 		ch, requests, err := newChan.Accept()
@@ -81,7 +81,7 @@ func handleConn(conn net.Conn, config *ssh.ServerConfig) {
 		}
 
 		go func() {
-			defer ch.Close()
+			defer func() { _ = ch.Close() }()
 			for req := range requests {
 				switch req.Type {
 				case "exec":
@@ -91,38 +91,38 @@ func handleConn(conn net.Conn, config *ssh.ServerConfig) {
 						if cmdLen > 0 && 4+cmdLen <= len(req.Payload) {
 							cmd := string(req.Payload[4 : 4+cmdLen])
 							if cmd == "echo $HOME" {
-								ch.Write([]byte("/home/testuser\n"))
+								_, _ = ch.Write([]byte("/home/testuser\n"))
 							} else if len(cmd) > 3 && cmd[:3] == "ls " {
-								ch.Write([]byte("total 4\n-rw-r--r-- 1 user user 100 2024-01-15 10:00:00 testfile.txt\ndrwxr-xr-x 2 user user 4096 2024-01-15 10:00:00 testdir\n"))
+								_, _ = ch.Write([]byte("total 4\n-rw-r--r-- 1 user user 100 2024-01-15 10:00:00 testfile.txt\ndrwxr-xr-x 2 user user 4096 2024-01-15 10:00:00 testdir\n"))
 							}
 						}
 					}
 					if req.WantReply {
-						req.Reply(true, nil)
+						_ = req.Reply(true, nil)
 					}
-					ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
-					ch.Close()
+					_, _ = ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
+					_ = ch.Close()
 					return
 				case "pty-req":
 					if req.WantReply {
-						req.Reply(true, nil)
+						_ = req.Reply(true, nil)
 					}
 				case "shell":
 					if req.WantReply {
-						req.Reply(true, nil)
+						_ = req.Reply(true, nil)
 					}
 					// Write prompt then close with exit-status
-					ch.Write([]byte("$ "))
-					ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
-					ch.Close()
+					_, _ = ch.Write([]byte("$ "))
+					_, _ = ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
+					_ = ch.Close()
 					return
 				case "window-change":
 					if req.WantReply {
-						req.Reply(true, nil)
+						_ = req.Reply(true, nil)
 					}
 				default:
 					if req.WantReply {
-						req.Reply(false, nil)
+						_ = req.Reply(false, nil)
 					}
 				}
 			}
@@ -145,7 +145,7 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if client.client == nil {
 		t.Error("client.client should not be nil")
@@ -193,13 +193,13 @@ func TestClientNewSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	session, err := client.NewSession()
 	if err != nil {
 		t.Fatalf("NewSession() error = %v", err)
 	}
-	session.Close()
+	_ = session.Close()
 }
 
 func TestClientListDir(t *testing.T) {
@@ -213,7 +213,7 @@ func TestClientListDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	files, err := client.ListDir("/home")
 	if err != nil {
@@ -239,7 +239,7 @@ func TestClientStartTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	session, err := client.NewSession()
 	if err != nil {
@@ -253,7 +253,7 @@ func TestClientStartTerminal(t *testing.T) {
 	}
 
 	// Close session to stop the shell goroutine
-	session.Close()
+	_ = session.Close()
 }
 
 type fakeWriter struct {
@@ -276,7 +276,7 @@ func TestClientResizePty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	session, err := client.NewSession()
 	if err != nil {
@@ -293,7 +293,7 @@ func TestClientResizePty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResizePty() error = %v", err)
 	}
-	session.Close()
+	_ = session.Close()
 }
 
 func TestClientUploadDownloadFile(t *testing.T) {
@@ -309,12 +309,14 @@ func TestClientUploadDownloadFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// UploadFile - create a local file
 	dir := t.TempDir()
 	localFile := filepath.Join(dir, "upload.txt")
-	os.WriteFile(localFile, []byte("test content"), 0644)
+	if err := os.WriteFile(localFile, []byte("test content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Upload will fail because test server doesn't support SCP
 	err = client.UploadFile(localFile, "/tmp/upload.txt")
@@ -341,7 +343,7 @@ func TestUploadFileNonexistentLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	err = client.UploadFile("/nonexistent/file", "/remote/file")
 	if err == nil {

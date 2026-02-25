@@ -239,7 +239,9 @@ func TestFBUpdateLocalCursorDown(t *testing.T) {
 	dir := t.TempDir()
 	// Create a few files
 	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -255,7 +257,9 @@ func TestFBUpdateLocalCursorDown(t *testing.T) {
 func TestFBUpdateLocalCursorUp(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt"} {
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.localCursor = 1
@@ -313,8 +317,8 @@ func TestFBUpdateTransferDoneMsgError(t *testing.T) {
 		transferProgress: "file.txt",
 	}
 	m, _ = m.Update(TransferDoneMsg{Err: os.ErrNotExist})
-	if !m.transferring {
-		// transferring should be set to false
+	if m.transferring {
+		t.Error("transferring should be set to false after TransferDoneMsg")
 	}
 	if !strings.Contains(m.statusMsg, "Transfer failed") {
 		t.Errorf("statusMsg = %q, want Transfer failed", m.statusMsg)
@@ -351,7 +355,9 @@ func TestFBScrollDownLocal(t *testing.T) {
 	// Create more files than visible
 	for i := 0; i < 30; i++ {
 		name := strings.Repeat("f", i+1) + ".txt"
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 15 // small height to trigger scroll
@@ -371,8 +377,12 @@ func TestFBScrollDownLocal(t *testing.T) {
 
 func TestFBLocalEnterDir(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(dir+"/subdir", 0755)
-	os.WriteFile(dir+"/subdir/inner.txt", []byte("x"), 0644)
+	if err := os.MkdirAll(dir+"/subdir", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/subdir/inner.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -401,7 +411,9 @@ func TestFBLocalEnterDir(t *testing.T) {
 func TestFBLocalBackspace(t *testing.T) {
 	dir := t.TempDir()
 	sub := dir + "/sub"
-	os.MkdirAll(sub, 0755)
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, sub, "/remote")
 	m.height = 30
@@ -557,7 +569,9 @@ func TestFBRemoteBackspaceAtRoot(t *testing.T) {
 
 func TestFBLocalEnterFile(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/file.txt", []byte("content"), 0644)
+	if err := os.WriteFile(dir+"/file.txt", []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -579,7 +593,9 @@ func TestFBLocalEnterFile(t *testing.T) {
 func TestFBVimKeysDown(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt"} {
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -594,7 +610,9 @@ func TestFBVimKeysDown(t *testing.T) {
 func TestFBVimKeysUp(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt"} {
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.localCursor = 1
@@ -613,8 +631,12 @@ func TestFBVimKeysUp(t *testing.T) {
 
 func TestFBRenderLocalPanelWithFiles(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/readme.txt", []byte("hello world"), 0644)
-	os.MkdirAll(dir+"/docs", 0755)
+	if err := os.WriteFile(dir+"/readme.txt", []byte("hello world"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir+"/docs", 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.width = 80
@@ -645,8 +667,12 @@ func TestFBRenderRemotePanelWithFiles(t *testing.T) {
 
 func TestFBRenderLocalPanelWithSelection(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/a.txt", []byte("a"), 0644)
-	os.WriteFile(dir+"/b.txt", []byte("b"), 0644)
+	if err := os.WriteFile(dir+"/a.txt", []byte("a"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/b.txt", []byte("b"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.width = 80
@@ -683,7 +709,9 @@ func TestFBRenderRemotePanelWithSelection(t *testing.T) {
 
 func TestFBViewWithFiles(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/test.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/test.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.width = 80
@@ -702,7 +730,9 @@ func TestFBViewWithFiles(t *testing.T) {
 
 func TestSelectedLocalFileWithFiles(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/test.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/test.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	got := m.SelectedLocalFile()
@@ -720,7 +750,9 @@ func TestSelectedLocalFileWithFiles(t *testing.T) {
 
 func TestFBTransferDoneSuccess(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/test.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/test.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.transferring = true
@@ -744,7 +776,9 @@ func TestFBLocalScrollUpTracking(t *testing.T) {
 	dir := t.TempDir()
 	for i := 0; i < 30; i++ {
 		name := strings.Repeat("f", i+1) + ".txt"
-		os.WriteFile(dir+"/"+name, []byte("x"), 0644)
+		if err := os.WriteFile(dir+"/"+name, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 15
@@ -771,7 +805,9 @@ func TestFBLocalScrollUpTracking(t *testing.T) {
 
 func TestFBLocalCursorAtZeroNoUp(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/a.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/a.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
 
@@ -784,7 +820,9 @@ func TestFBLocalCursorAtZeroNoUp(t *testing.T) {
 
 func TestFBLocalCursorAtEndNoDown(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/a.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/a.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.localCursor = len(m.localFiles) - 1
 	m.height = 30
@@ -830,14 +868,14 @@ func TestFBRemoteCursorAtEndNoDown(t *testing.T) {
 func TestFBEnterLocalEmptyFiles(t *testing.T) {
 	m := FileBrowserModel{focus: panelLocal, localDir: "/tmp", height: 30}
 	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	m, _ = m.Update(enterMsg)
+	_, _ = m.Update(enterMsg)
 	// Should not panic with empty localFiles
 }
 
 func TestFBEnterRemoteEmptyFiles(t *testing.T) {
 	m := FileBrowserModel{focus: panelRemote, remoteDir: "/home", height: 30}
 	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	m, _ = m.Update(enterMsg)
+	_, _ = m.Update(enterMsg)
 	// Should not panic with empty remoteFiles
 }
 
@@ -887,7 +925,9 @@ func TestFBViewMinimalHeight(t *testing.T) {
 
 func TestFBCtrlUUpload(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/upload.txt", []byte("data"), 0644)
+	if err := os.WriteFile(dir+"/upload.txt", []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -912,7 +952,9 @@ func TestFBCtrlUUpload(t *testing.T) {
 
 func TestFBCtrlUOnDir(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(dir+"/subdir", 0755)
+	if err := os.MkdirAll(dir+"/subdir", 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -939,7 +981,9 @@ func TestFBCtrlUOnDir(t *testing.T) {
 
 func TestFBCtrlUWhileTransferring(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/f.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/f.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -1018,7 +1062,7 @@ func TestFBCtrlDWhileTransferring(t *testing.T) {
 	}
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
-	m, cmd := m.Update(msg)
+	_, cmd := m.Update(msg)
 	if cmd != nil {
 		t.Error("should not start another transfer while transferring")
 	}
@@ -1032,7 +1076,7 @@ func TestFBCtrlDEmptyFiles(t *testing.T) {
 	}
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
-	m, cmd := m.Update(msg)
+	_, cmd := m.Update(msg)
 	if cmd != nil {
 		t.Error("should not start transfer with empty files")
 	}
@@ -1044,7 +1088,9 @@ func TestFBCtrlDEmptyFiles(t *testing.T) {
 
 func TestFBTKeyUploadLocal(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/t.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/t.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -1085,7 +1131,9 @@ func TestFBTKeyDownloadRemote(t *testing.T) {
 
 func TestFBTKeyOnDirLocal(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(dir+"/sub", 0755)
+	if err := os.MkdirAll(dir+"/sub", 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
@@ -1132,7 +1180,9 @@ func TestFBTKeyOnDirRemote(t *testing.T) {
 
 func TestFBTKeyWhileTransferring(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(dir+"/f.txt", []byte("x"), 0644)
+	if err := os.WriteFile(dir+"/f.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.transferring = true
@@ -1180,7 +1230,7 @@ func TestFBCtrlUEmptyFiles(t *testing.T) {
 		height:   30,
 	}
 	msg := tea.KeyMsg{Type: tea.KeyCtrlU}
-	m, cmd := m.Update(msg)
+	_, cmd := m.Update(msg)
 	if cmd != nil {
 		t.Error("should not start transfer with empty files")
 	}
@@ -1197,7 +1247,7 @@ func TestFBTKeyEmptyLocalFiles(t *testing.T) {
 		height:   30,
 	}
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")}
-	m, cmd := m.Update(msg)
+	_, cmd := m.Update(msg)
 	if cmd != nil {
 		t.Error("T with no files should not start transfer")
 	}
@@ -1210,7 +1260,7 @@ func TestFBTKeyEmptyRemoteFiles(t *testing.T) {
 		height:    30,
 	}
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")}
-	m, cmd := m.Update(msg)
+	_, cmd := m.Update(msg)
 	if cmd != nil {
 		t.Error("T with no remote files should not start transfer")
 	}

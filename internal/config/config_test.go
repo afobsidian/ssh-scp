@@ -20,7 +20,7 @@ func setupTestConfig(t *testing.T) (string, func()) {
 
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", dir)
-	return cfgFile, func() { os.Setenv("HOME", origHome) }
+	return cfgFile, func() { _ = os.Setenv("HOME", origHome) }
 }
 
 func TestConfigPath(t *testing.T) {

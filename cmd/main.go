@@ -397,20 +397,38 @@ func (e *hostKeyPendingError) Error() string {
 	return "host key verification required for " + e.hostname
 }
 
-func connectCmd(conn config.Connection) tea.Cmd {
-	return func() tea.Msg {
-		var authMethods []ssh.AuthMethod
-		if conn.KeyPath != "" {
-			am, err := sshclient.PubKeyAuth(conn.KeyPath)
-			if err == nil {
-				authMethods = append(authMethods, am)
+// buildAuthMethods assembles SSH auth methods from the connection info,
+// falling back to ssh-agent and default key paths when needed.
+func buildAuthMethods(conn config.Connection) []ssh.AuthMethod {
+	var methods []ssh.AuthMethod
+	if conn.KeyPath != "" {
+		am, err := sshclient.PubKeyAuth(conn.KeyPath)
+		if err == nil {
+			methods = append(methods, am)
+		}
+	}
+	if conn.Password != "" {
+		methods = append(methods, sshclient.PasswordAuth(conn.Password))
+	}
+	// If no explicit auth, try ssh-agent and default keys.
+	if len(methods) == 0 {
+		if am, err := sshclient.AgentAuth(); err == nil {
+			methods = append(methods, am)
+		}
+		for _, kp := range sshclient.DefaultKeyPaths() {
+			if am, err := sshclient.PubKeyAuth(kp); err == nil {
+				methods = append(methods, am)
 			}
 		}
-		if conn.Password != "" {
-			authMethods = append(authMethods, sshclient.PasswordAuth(conn.Password))
-		}
+	}
+	return methods
+}
+
+func connectCmd(conn config.Connection) tea.Cmd {
+	return func() tea.Msg {
+		authMethods := buildAuthMethods(conn)
 		if len(authMethods) == 0 {
-			return connectedMsg{err: fmt.Errorf("no auth method provided"), conn: conn}
+			return connectedMsg{err: fmt.Errorf("no auth method available (provide password, key, or start ssh-agent)"), conn: conn}
 		}
 
 		hostKeyCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
@@ -448,16 +466,7 @@ func connectWithAcceptedKey(pending *pendingConnection) tea.Cmd {
 		fp := fingerprintSHA256(pending.hostKey)
 		acceptedHosts[pending.hostname] = fp
 
-		var authMethods []ssh.AuthMethod
-		if conn.KeyPath != "" {
-			am, err := sshclient.PubKeyAuth(conn.KeyPath)
-			if err == nil {
-				authMethods = append(authMethods, am)
-			}
-		}
-		if conn.Password != "" {
-			authMethods = append(authMethods, sshclient.PasswordAuth(conn.Password))
-		}
+		authMethods := buildAuthMethods(conn)
 
 		hkCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			kfp := fingerprintSHA256(key)

@@ -199,12 +199,12 @@ func TestSetProgram(t *testing.T) {
 
 func TestTerminalModelWriteWithPipe(t *testing.T) {
 	r, w := io.Pipe()
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	m := &TerminalModel{stdin: w}
 	go func() {
 		buf := make([]byte, 10)
-		r.Read(buf)
+		_, _ = r.Read(buf)
 	}()
 
 	err := m.Write([]byte("hi"))
