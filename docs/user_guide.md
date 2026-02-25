@@ -5,13 +5,13 @@
 ### Building
 
 ```sh
-go build -o sshtui ./cmd/main.go
+go build -o ./bin/ssh-scp ./cmd/main.go
 ```
 
 ### Running
 
 ```sh
-./sshtui
+./ssh-scp
 # or run directly without building:
 go run ./cmd/main.go
 ```
@@ -20,7 +20,7 @@ The application starts in fullscreen alternate-screen mode with mouse support en
 
 ## Connecting to a Server
 
-When sshtui launches, you see the connection form. Fill in the fields using **Tab** or **arrow keys** to navigate between them:
+When ssh-scp launches, you see the connection form. Fill in the fields using **Tab** or **arrow keys** to navigate between them:
 
 | Field    | Description                                      | Default    |
 | -------- | ------------------------------------------------ | ---------- |
@@ -34,11 +34,11 @@ Press **Enter** to connect. At least one authentication method (password or SSH 
 
 ### Recent Connections
 
-If you've connected before, a "Recent Connections" list appears to the right of the form. Up to 10 recent connections are stored automatically in `~/.config/sshtui/connections.json`.
+If you've connected before, a "Recent Connections" list appears to the right of the form. Up to 10 recent connections are stored automatically in `~/.config/ssh-scp/connections.json`.
 
 ### Host Key Verification
 
-On first connection to a new server, sshtui displays the host's SHA256 fingerprint:
+On first connection to a new server, ssh-scp displays the host's SHA256 fingerprint:
 
 ```text
 The authenticity of host 'example.com' can't be established.
@@ -105,7 +105,7 @@ Directories are displayed with a `▸` prefix and a trailing `/` in cyan. Files 
 
 ### File Transfers
 
-sshtui uses the SCP protocol for file transfers (not SFTP). Transfers operate on the currently selected file and the opposite panel's directory.
+ssh-scp uses the SCP protocol for file transfers (not SFTP). Transfers operate on the currently selected file and the opposite panel's directory.
 
 | Key      | Action                                                   | Condition                                                         |
 | -------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -119,7 +119,7 @@ During a transfer, the status bar shows progress. After completion, both panels 
 
 ## Tabs
 
-sshtui supports multiple simultaneous SSH connections, each in its own tab.
+ssh-scp supports multiple simultaneous SSH connections, each in its own tab.
 
 | Key      | Action                                                 |
 | -------- | ------------------------------------------------------ |
@@ -177,7 +177,7 @@ All keystrokes are forwarded to the remote shell as ANSI sequences. Standard ter
 ### Config File Location
 
 ```text
-~/.config/sshtui/connections.json
+~/.config/ssh-scp/connections.json
 ```
 
 ### Config Format

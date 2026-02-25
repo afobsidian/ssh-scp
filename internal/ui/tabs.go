@@ -15,18 +15,18 @@ type Tab struct {
 
 var (
 	tabActiveStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#7D56F4")).
-		Padding(0, 2)
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#7D56F4")).
+			Padding(0, 2)
 
 	tabInactiveStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Background(lipgloss.Color("#1A1A1A")).
-		Padding(0, 2)
+				Foreground(lipgloss.Color("#888888")).
+				Background(lipgloss.Color("#1A1A1A")).
+				Padding(0, 2)
 
 	tabBarStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color("#0F0F0F"))
+			Background(lipgloss.Color("#0F0F0F"))
 )
 
 // RenderTabBar renders the tab bar for the given tabs and active tab index.

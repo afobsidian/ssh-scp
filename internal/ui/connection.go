@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"ssh-scp/internal/config"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"sshtui/internal/config"
 )
 
 // ConnectMsg is sent when the user initiates a connection.
@@ -43,7 +44,9 @@ type recentItem struct {
 	conn config.Connection
 }
 
-func (r recentItem) Title() string       { return fmt.Sprintf("%s@%s:%s", r.conn.Username, r.conn.Host, r.conn.Port) }
+func (r recentItem) Title() string {
+	return fmt.Sprintf("%s@%s:%s", r.conn.Username, r.conn.Host, r.conn.Port)
+}
 func (r recentItem) Description() string { return r.conn.Name }
 func (r recentItem) FilterValue() string { return r.conn.Host }
 
@@ -127,7 +130,9 @@ func (m ConnectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				KeyPath:  key,
 			}
 			m.cfg.AddRecent(conn)
-			_ = config.Save(m.cfg)
+			if err := config.Save(m.cfg); err != nil {
+				m.err = "Failed to save config: " + err.Error()
+			}
 
 			return m, func() tea.Msg { return ConnectMsg{Conn: conn} }
 		}
@@ -140,26 +145,26 @@ func (m ConnectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
-		Padding(0, 1)
+			Bold(true).
+			Foreground(lipgloss.Color("#7D56F4")).
+			Padding(0, 1)
 
 	labelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Width(12)
+			Foreground(lipgloss.Color("#888888")).
+			Width(12)
 
 	inputBoxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#444444")).
-		Padding(1, 2).
-		Width(50)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#444444")).
+			Padding(1, 2).
+			Width(50)
 
 	focusedInputBoxStyle = inputBoxStyle.
-		BorderForeground(lipgloss.Color("#7D56F4"))
+				BorderForeground(lipgloss.Color("#7D56F4"))
 
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF5555")).
-		Bold(true)
+			Foreground(lipgloss.Color("#FF5555")).
+			Bold(true)
 )
 
 func (m ConnectionModel) View() string {

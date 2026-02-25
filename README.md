@@ -1,4 +1,4 @@
-# sshtui
+# ssh-scp
 
 A terminal user interface (TUI) for interactive SSH terminal access and SCP file transfers, built in Go. Designed for servers that lack SFTP support.
 
@@ -23,7 +23,7 @@ A terminal user interface (TUI) for interactive SSH terminal access and SCP file
 ```sh
 # Clone and build
 git clone <repo-url> && cd ssh-scp
-go build -o sshtui ./cmd/main.go
+go build -o ./bin/ssh-scp ./cmd/main.go
 
 # Or run directly
 go run ./cmd/main.go
@@ -31,7 +31,7 @@ go run ./cmd/main.go
 
 ## Quick Start
 
-1. Launch: `./sshtui`
+1. Launch: `./bin/ssh-scp`
 2. Fill in the connection form (host, port, username, password or SSH key path)
 3. Press **Enter** to connect
 4. If prompted, verify the host key fingerprint and press **Enter** to accept
@@ -55,7 +55,7 @@ go run ./cmd/main.go
 
 ## Authentication
 
-sshtui supports two authentication methods:
+ssh-scp supports two authentication methods:
 
 - **Password** — Enter in the connection form
 - **SSH key** — Provide the path to your private key file (e.g., `~/.ssh/id_rsa`)
@@ -67,7 +67,7 @@ Both can be provided simultaneously; key auth is attempted first.
 Recent connections are stored in:
 
 ```text
-~/.config/sshtui/connections.json
+~/.config/ssh-scp/connections.json
 ```
 
 Up to 10 recent connections are saved automatically. Passwords are stored in plaintext in this file — use SSH key authentication for sensitive environments.
@@ -77,7 +77,7 @@ Up to 10 recent connections are saved automatically. Passwords are stored in pla
 ```text
 cmd/main.go              # Application entry point and root model
 internal/
-  config/config.go       # Connection persistence (~/.config/sshtui/)
+  config/config.go       # Connection persistence (~/.config/ssh-scp/)
   ssh/client.go          # SSH client, PTY, SCP transfers, remote ls parsing
   ui/
     connection.go        # Connection form screen

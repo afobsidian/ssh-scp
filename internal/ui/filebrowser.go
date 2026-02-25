@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	sshclient "ssh-scp/internal/ssh"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	sshclient "sshtui/internal/ssh"
 )
 
 // TransferMsg is sent to request a file transfer.
@@ -72,6 +73,15 @@ func (m *FileBrowserModel) SetDimensions(width, height int) {
 	m.height = height
 }
 
+// visibleHeight returns the number of file rows visible in a panel.
+func (m FileBrowserModel) visibleHeight() int {
+	v := m.height - 8 // account for panel borders, header, status bar
+	if v < 1 {
+		v = 1
+	}
+	return v
+}
+
 func (m *FileBrowserModel) refreshLocal() {
 	entries, err := os.ReadDir(m.localDir)
 	if err != nil {
@@ -129,9 +139,9 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 	case TransferDoneMsg:
 		m.transferring = false
 		if msg.Err != nil {
-			m.statusMsg = "Transfer failed: " + msg.Err.Error()
+			m.statusMsg = fmt.Sprintf("Transfer failed (%s): %s", m.transferProgress, msg.Err.Error())
 		} else {
-			m.statusMsg = "Transfer complete!"
+			m.statusMsg = fmt.Sprintf("Transfer complete: %s", m.transferProgress)
 			m.refreshLocal()
 			return m, refreshRemoteCmd(m.client, m.remoteDir)
 		}
@@ -148,15 +158,27 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 		case "up", "k":
 			if m.focus == panelLocal && m.localCursor > 0 {
 				m.localCursor--
+				if m.localCursor < m.localScroll {
+					m.localScroll = m.localCursor
+				}
 			} else if m.focus == panelRemote && m.remoteCursor > 0 {
 				m.remoteCursor--
+				if m.remoteCursor < m.remoteScroll {
+					m.remoteScroll = m.remoteCursor
+				}
 			}
 
 		case "down", "j":
 			if m.focus == panelLocal && m.localCursor < len(m.localFiles)-1 {
 				m.localCursor++
+				if vis := m.visibleHeight(); m.localCursor >= m.localScroll+vis {
+					m.localScroll = m.localCursor - vis + 1
+				}
 			} else if m.focus == panelRemote && m.remoteCursor < len(m.remoteFiles)-1 {
 				m.remoteCursor++
+				if vis := m.visibleHeight(); m.remoteCursor >= m.remoteScroll+vis {
+					m.remoteScroll = m.remoteCursor - vis + 1
+				}
 			}
 
 		case "enter":
@@ -165,6 +187,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				if f.IsDir() {
 					m.localDir = filepath.Join(m.localDir, f.Name())
 					m.localCursor = 0
+					m.localScroll = 0
 					m.refreshLocal()
 				}
 			} else if m.focus == panelRemote && len(m.remoteFiles) > 0 {
@@ -172,6 +195,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				if f.IsDir {
 					m.remoteDir = joinRemotePath(m.remoteDir, f.Name)
 					m.remoteCursor = 0
+					m.remoteScroll = 0
 					return m, refreshRemoteCmd(m.client, m.remoteDir)
 				}
 			}
@@ -182,6 +206,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				if parent != m.localDir {
 					m.localDir = parent
 					m.localCursor = 0
+					m.localScroll = 0
 					m.refreshLocal()
 				}
 			} else {
@@ -192,6 +217,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 						m.remoteDir = "/"
 					}
 					m.remoteCursor = 0
+					m.remoteScroll = 0
 					return m, refreshRemoteCmd(m.client, m.remoteDir)
 				}
 			}
@@ -203,6 +229,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 					localPath := filepath.Join(m.localDir, f.Name())
 					remotePath := joinRemotePath(m.remoteDir, f.Name())
 					m.transferring = true
+					m.transferProgress = f.Name()
 					m.statusMsg = "Uploading " + f.Name() + "..."
 					client := m.client
 					return m, func() tea.Msg {
@@ -221,6 +248,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 						localPath := filepath.Join(m.localDir, f.Name())
 						remotePath := joinRemotePath(m.remoteDir, f.Name())
 						m.transferring = true
+						m.transferProgress = f.Name()
 						m.statusMsg = "Uploading " + f.Name() + "..."
 						client := m.client
 						return m, func() tea.Msg {
@@ -233,6 +261,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 					if !f.IsDir {
 						remotePath := joinRemotePath(m.remoteDir, f.Name)
 						m.transferring = true
+						m.transferProgress = f.Name
 						m.statusMsg = "Downloading " + f.Name + "..."
 						client := m.client
 						localDir := m.localDir
@@ -250,6 +279,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				if !f.IsDir {
 					remotePath := joinRemotePath(m.remoteDir, f.Name)
 					m.transferring = true
+					m.transferProgress = f.Name
 					m.statusMsg = "Downloading " + f.Name + "..."
 					client := m.client
 					localDir := m.localDir
@@ -266,34 +296,34 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 
 var (
 	panelStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#444444")).
-		Padding(0, 1)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#444444")).
+			Padding(0, 1)
 
 	activePanelStyle = panelStyle.
-		BorderForeground(lipgloss.Color("#7D56F4"))
+				BorderForeground(lipgloss.Color("#7D56F4"))
 
 	fileSelectedStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color("#7D56F4")).
-		Foreground(lipgloss.Color("#FFFFFF"))
+				Background(lipgloss.Color("#7D56F4")).
+				Foreground(lipgloss.Color("#FFFFFF"))
 
 	dirStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#56D1F4")).
-		Bold(true)
+			Foreground(lipgloss.Color("#56D1F4")).
+			Bold(true)
 
 	fileStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#CCCCCC"))
+			Foreground(lipgloss.Color("#CCCCCC"))
 
 	headerStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#AAAAAA")).
-		BorderBottom(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#444444"))
+			Bold(true).
+			Foreground(lipgloss.Color("#AAAAAA")).
+			BorderBottom(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("#444444"))
 
 	statusBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Italic(true)
+			Foreground(lipgloss.Color("#888888")).
+			Italic(true)
 )
 
 func formatSize(size int64) string {
@@ -330,12 +360,8 @@ func (m FileBrowserModel) renderLocalPanel(panelWidth, panelHeight int) string {
 	if visibleHeight < 1 {
 		visibleHeight = 1
 	}
-	start := 0
-	if m.localCursor >= visibleHeight {
-		start = m.localCursor - visibleHeight + 1
-	}
 
-	for i := start; i < len(m.localFiles) && i < start+visibleHeight; i++ {
+	for i := m.localScroll; i < len(m.localFiles) && i < m.localScroll+visibleHeight; i++ {
 		f := m.localFiles[i]
 		name := f.Name()
 		size := formatSize(f.Size())
@@ -380,12 +406,8 @@ func (m FileBrowserModel) renderRemotePanel(panelWidth, panelHeight int) string 
 	if visibleHeight < 1 {
 		visibleHeight = 1
 	}
-	start := 0
-	if m.remoteCursor >= visibleHeight {
-		start = m.remoteCursor - visibleHeight + 1
-	}
 
-	for i := start; i < len(m.remoteFiles) && i < start+visibleHeight; i++ {
+	for i := m.remoteScroll; i < len(m.remoteFiles) && i < m.remoteScroll+visibleHeight; i++ {
 		f := m.remoteFiles[i]
 		size := formatSize(f.Size)
 		modTime := f.ModTime.Format("2006-01-02")

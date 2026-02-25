@@ -23,7 +23,7 @@ type Config struct {
 
 func configPath() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "sshtui", "connections.json")
+	return filepath.Join(home, ".config", "ssh-scp", "connections.json")
 }
 
 // Load reads the config from disk.

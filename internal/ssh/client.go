@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -105,12 +106,16 @@ func (c *Client) ResizePty(session *ssh.Session, width, height int) error {
 }
 
 // ListDir lists the contents of a remote directory.
-func (c *Client) ListDir(path string) ([]RemoteFile, error) {
+func (c *Client) ListDir(path string) (files []RemoteFile, retErr error) {
 	session, err := c.client.NewSession()
 	if err != nil {
 		return nil, err
 	}
-	defer session.Close()
+	defer func() {
+		if cErr := session.Close(); cErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("close session: %w", cErr))
+		}
+	}()
 
 	// Use printf %q to safely single-quote the path, preventing shell injection.
 	escapedPath := shellQuote(path)
@@ -123,7 +128,7 @@ func (c *Client) ListDir(path string) ([]RemoteFile, error) {
 }
 
 // UploadFile uploads a local file to the remote destination path.
-func (c *Client) UploadFile(localPath, remotePath string) error {
+func (c *Client) UploadFile(localPath, remotePath string) (retErr error) {
 	scpClient, err := scp.NewClientBySSH(c.client)
 	if err != nil {
 		return err
@@ -134,7 +139,11 @@ func (c *Client) UploadFile(localPath, remotePath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cErr := f.Close(); cErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("close local file: %w", cErr))
+		}
+	}()
 
 	info, err := f.Stat()
 	if err != nil {
@@ -145,7 +154,7 @@ func (c *Client) UploadFile(localPath, remotePath string) error {
 }
 
 // DownloadFile downloads a remote file to a local destination path.
-func (c *Client) DownloadFile(remotePath, localDir string) error {
+func (c *Client) DownloadFile(remotePath, localDir string) (retErr error) {
 	scpClient, err := scp.NewClientBySSH(c.client)
 	if err != nil {
 		return err
@@ -159,7 +168,11 @@ func (c *Client) DownloadFile(remotePath, localDir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cErr := f.Close(); cErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("close local file: %w", cErr))
+		}
+	}()
 
 	return scpClient.CopyFromRemote(context.Background(), f, remotePath)
 }
@@ -225,7 +238,7 @@ func parseLSLine(line string) *RemoteFile {
 	}
 
 	var size int64
-	fmt.Sscanf(fields[4], "%d", &size)
+	_, _ = fmt.Sscanf(fields[4], "%d", &size)
 
 	mode := parsePerm(perm)
 
@@ -266,14 +279,32 @@ func parsePerm(perm string) os.FileMode {
 		return 0
 	}
 	var mode os.FileMode
-	if perm[1] == 'r' { mode |= 0400 }
-	if perm[2] == 'w' { mode |= 0200 }
-	if perm[3] == 'x' { mode |= 0100 }
-	if perm[4] == 'r' { mode |= 0040 }
-	if perm[5] == 'w' { mode |= 0020 }
-	if perm[6] == 'x' { mode |= 0010 }
-	if perm[7] == 'r' { mode |= 0004 }
-	if perm[8] == 'w' { mode |= 0002 }
-	if perm[9] == 'x' { mode |= 0001 }
+	if perm[1] == 'r' {
+		mode |= 0400
+	}
+	if perm[2] == 'w' {
+		mode |= 0200
+	}
+	if perm[3] == 'x' {
+		mode |= 0100
+	}
+	if perm[4] == 'r' {
+		mode |= 0040
+	}
+	if perm[5] == 'w' {
+		mode |= 0020
+	}
+	if perm[6] == 'x' {
+		mode |= 0010
+	}
+	if perm[7] == 'r' {
+		mode |= 0004
+	}
+	if perm[8] == 'w' {
+		mode |= 0002
+	}
+	if perm[9] == 'x' {
+		mode |= 0001
+	}
 	return mode
 }

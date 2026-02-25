@@ -1,4 +1,4 @@
-# Copilot Instructions — ssh-scp (sshtui)
+# Copilot Instructions — ssh-scp (ssh-scp)
 
 ## Project Overview
 
@@ -13,7 +13,7 @@ The app follows Bubble Tea's **Model → Update → View** loop. The root model 
 | Package           | Responsibility                                                                                                                                                      |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cmd/main.go`     | Root model, app states, message routing, SSH connection lifecycle, key-to-ANSI mapping                                                                              |
-| `internal/config` | JSON config at `~/.config/sshtui/connections.json` — load/save recent connections (max 10)                                                                          |
+| `internal/config` | JSON config at `~/.config/ssh-scp/connections.json` — load/save recent connections (max 10)                                                                         |
 | `internal/ssh`    | SSH client wrapper — PTY sessions, `ls -la` parsing for remote dir listing, SCP upload/download via `go-scp`                                                        |
 | `internal/ui`     | Bubble Tea sub-models: `ConnectionModel` (form + recent list), `TerminalModel` (PTY I/O buffer), `FileBrowserModel` (dual-pane local/remote), tab bar, help overlay |
 
@@ -32,11 +32,11 @@ The app follows Bubble Tea's **Model → Update → View** loop. The root model 
 ## Build & Run
 
 ```sh
-go build -o sshtui ./cmd/main.go   # build
+go build -o ./bin/ssh-scp ./cmd/main.go   # build
 go run ./cmd/main.go                # run directly
 ```
 
-Module name is `sshtui` (see `go.mod`). No test suite exists yet.
+Module name is `ssh-scp` (see `go.mod`). No test suite exists yet.
 
 ## Conventions & Patterns
 

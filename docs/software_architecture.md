@@ -2,7 +2,7 @@
 
 ## Overview
 
-sshtui is a Go terminal application built on the [Bubble Tea](https://github.com/charmbracelet/bubbletea) framework, which implements the Elm architecture (Model → Update → View). The application provides interactive SSH terminal access and SCP-based file transfers through a keyboard-driven TUI.
+ssh-scp is a Go terminal application built on the [Bubble Tea](https://github.com/charmbracelet/bubbletea) framework, which implements the Elm architecture (Model → Update → View). The application provides interactive SSH terminal access and SCP-based file transfers through a keyboard-driven TUI.
 
 ## High-Level Design
 
@@ -91,7 +91,7 @@ Each file owns one logical UI component:
 
 ### `internal/config` — Persistence
 
-Manages `~/.config/sshtui/connections.json`:
+Manages `~/.config/ssh-scp/connections.json`:
 
 - `Load()` / `Save()` — JSON serialization with `0600` file permissions
 - `AddRecent()` — Upserts connections, caps at 10 entries

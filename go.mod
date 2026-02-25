@@ -1,4 +1,4 @@
-module sshtui
+module ssh-scp
 
 go 1.24.12
 

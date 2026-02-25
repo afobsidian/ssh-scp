@@ -2,16 +2,18 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strings"
 
+	"ssh-scp/internal/config"
+	sshclient "ssh-scp/internal/ssh"
+	"ssh-scp/internal/ui"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/crypto/ssh"
-	"sshtui/internal/config"
-	sshclient "sshtui/internal/ssh"
-	"sshtui/internal/ui"
 )
 
 // prog is the global bubbletea program reference used by terminal writers.
@@ -134,7 +136,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if out, err := sess.Output("echo $HOME"); err == nil {
 				homeDir = strings.TrimSpace(string(out))
 			}
-			sess.Close()
+			if err := sess.Close(); err != nil {
+				log.Printf("close home-dir session: %v", err)
+			}
 		}
 
 		localDir, _ := os.Getwd()
@@ -147,6 +151,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t := terminal
 		cmds = append(cmds, func() tea.Msg {
 			if err := t.StartSession(); err != nil {
+				t.SetError(err.Error())
 				return ui.TerminalOutputMsg{Data: []byte("Error starting terminal: " + err.Error() + "\r\n")}
 			}
 			return nil
@@ -237,7 +242,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == stateMain && !m.showHelp {
 			if m.focus == paneTerminal {
 				if m.activeTab < len(m.terminals) && m.terminals[m.activeTab] != nil {
-					_ = m.terminals[m.activeTab].Write(keyToBytes(msg))
+					if err := m.terminals[m.activeTab].Write(keyToBytes(msg)); err != nil {
+						m.err = "Terminal write failed: " + err.Error()
+					}
 				}
 				return m, nil
 			} else {
@@ -338,22 +345,30 @@ func (m AppModel) renderMain() string {
 func (m *AppModel) cleanup() {
 	for _, t := range m.terminals {
 		if t != nil {
-			t.Close()
+			if err := t.Close(); err != nil {
+				log.Printf("close terminal: %v", err)
+			}
 		}
 	}
 	for _, c := range m.clients {
 		if c != nil {
-			c.Close()
+			if err := c.Close(); err != nil {
+				log.Printf("close client: %v", err)
+			}
 		}
 	}
 }
 
 func (m *AppModel) closeTab(idx int) {
 	if idx < len(m.terminals) && m.terminals[idx] != nil {
-		m.terminals[idx].Close()
+		if err := m.terminals[idx].Close(); err != nil {
+			log.Printf("close tab terminal: %v", err)
+		}
 	}
 	if idx < len(m.clients) && m.clients[idx] != nil {
-		m.clients[idx].Close()
+		if err := m.clients[idx].Close(); err != nil {
+			log.Printf("close tab client: %v", err)
+		}
 	}
 	m.tabs = append(m.tabs[:idx], m.tabs[idx+1:]...)
 	if idx < len(m.clients) {

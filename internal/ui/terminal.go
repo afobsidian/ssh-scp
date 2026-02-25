@@ -2,13 +2,16 @@ package ui
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"sync"
+
+	sshclient "ssh-scp/internal/ssh"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/crypto/ssh"
-	sshclient "sshtui/internal/ssh"
 )
 
 // TerminalOutputMsg carries new output from the SSH session.
@@ -65,8 +68,8 @@ func (m *TerminalModel) StartSession() error {
 
 	stdinPipe, err := session.StdinPipe()
 	if err != nil {
-		session.Close()
-		return err
+		closeErr := session.Close()
+		return errors.Join(err, closeErr)
 	}
 	m.stdin = stdinPipe
 
@@ -78,17 +81,23 @@ func (m *TerminalModel) StartSession() error {
 	}
 
 	if err := m.client.StartTerminal(session, nil, tw, tw); err != nil {
-		session.Close()
-		return err
+		closeErr := session.Close()
+		return errors.Join(err, closeErr)
 	}
 
 	go func() {
-		session.Wait()
+		if err := session.Wait(); err != nil {
+			if m.program != nil {
+				m.program.Send(TerminalOutputMsg{Data: []byte(fmt.Sprintf("\r\n[Session exited: %s]\r\n", err))})
+			}
+			return
+		}
 		if m.program != nil {
 			m.program.Send(TerminalOutputMsg{Data: []byte("\r\n[Session closed]\r\n")})
 		}
 	}()
 
+	m.err = ""
 	return nil
 }
 
@@ -106,18 +115,26 @@ func (m *TerminalModel) Resize(width, height int) {
 	m.width = width
 	m.height = height
 	if m.session != nil {
-		_ = m.client.ResizePty(m.session, width, height)
+		if err := m.client.ResizePty(m.session, width, height); err != nil {
+			m.err = fmt.Sprintf("resize pty: %s", err)
+		}
 	}
 }
 
-// Close closes the terminal session.
-func (m *TerminalModel) Close() {
+// Close closes the terminal session and returns any errors encountered.
+func (m *TerminalModel) Close() error {
+	var errs []error
 	if m.stdin != nil {
-		m.stdin.Close()
+		if err := m.stdin.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close stdin: %w", err))
+		}
 	}
 	if m.session != nil {
-		m.session.Close()
+		if err := m.session.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close session: %w", err))
+		}
 	}
+	return errors.Join(errs...)
 }
 
 // AppendOutput appends terminal output to the buffer.
@@ -141,19 +158,32 @@ func (m *TerminalModel) BufferedOutput() string {
 
 var (
 	terminalStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#444444")).
-		Padding(0, 1)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#444444")).
+			Padding(0, 1)
 
 	activeTerminalStyle = terminalStyle.
-		BorderForeground(lipgloss.Color("#7D56F4"))
+				BorderForeground(lipgloss.Color("#7D56F4"))
 )
+
+// SetError records an error message to display in the terminal view.
+func (m *TerminalModel) SetError(msg string) {
+	m.err = msg
+}
 
 // RenderTerminal returns the terminal view string.
 func (m *TerminalModel) RenderTerminal(active bool, width, height int) string {
 	style := terminalStyle
 	if active {
 		style = activeTerminalStyle
+	}
+
+	if m.err != "" {
+		errView := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF5555")).
+			Bold(true).
+			Render("Error: " + m.err)
+		return style.Width(width).Height(height).Render(errView)
 	}
 
 	output := m.BufferedOutput()
