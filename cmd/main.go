@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
 	"fmt"
 	"net"
 	"os"
@@ -238,7 +237,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == stateMain && !m.showHelp {
 			if m.focus == paneTerminal {
 				if m.activeTab < len(m.terminals) && m.terminals[m.activeTab] != nil {
-					_ = m.terminals[m.activeTab].Write([]byte(msg.String()))
+					_ = m.terminals[m.activeTab].Write(keyToBytes(msg))
 				}
 				return m, nil
 			} else {
@@ -286,7 +285,7 @@ func (m AppModel) renderHostKeyPrompt() string {
 	if m.pending == nil {
 		return ""
 	}
-	fp := fingerprintMD5(m.pending.hostKey)
+	fp := fingerprintSHA256(m.pending.hostKey)
 	prompt := fmt.Sprintf(
 		"The authenticity of host '%s' can't be established.\n\nHost key fingerprint:\n  %s\n\nDo you want to continue? (Enter=yes, n=no)",
 		m.pending.hostname, fp,
@@ -400,7 +399,7 @@ func connectCmd(conn config.Connection) tea.Cmd {
 		}
 
 		hostKeyCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			fp := fingerprintMD5(key)
+			fp := fingerprintSHA256(key)
 			if acceptedHosts[hostname] == fp {
 				return nil
 			}
@@ -431,7 +430,7 @@ func connectCmd(conn config.Connection) tea.Cmd {
 func connectWithAcceptedKey(pending *pendingConnection) tea.Cmd {
 	return func() tea.Msg {
 		conn := pending.conn
-		fp := fingerprintMD5(pending.hostKey)
+		fp := fingerprintSHA256(pending.hostKey)
 		acceptedHosts[pending.hostname] = fp
 
 		var authMethods []ssh.AuthMethod
@@ -446,7 +445,7 @@ func connectWithAcceptedKey(pending *pendingConnection) tea.Cmd {
 		}
 
 		hkCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			kfp := fingerprintMD5(key)
+			kfp := fingerprintSHA256(key)
 			if acceptedHosts[hostname] == kfp {
 				return nil
 			}
@@ -461,15 +460,66 @@ func connectWithAcceptedKey(pending *pendingConnection) tea.Cmd {
 	}
 }
 
-// fingerprintMD5 computes the MD5 fingerprint of a host key for display purposes,
-// matching the historical OpenSSH format. MD5 is not used here for security.
-func fingerprintMD5(key ssh.PublicKey) string {
-	h := md5.Sum(key.Marshal()) //nolint:gosec // MD5 used only for display, matching OpenSSH fingerprint format
-	var parts [16]string
-	for i, b := range h {
-		parts[i] = fmt.Sprintf("%02x", b)
+// fingerprintSHA256 computes the SHA256 fingerprint of a host key,
+// matching the modern OpenSSH fingerprint format (e.g. "SHA256:...").
+func fingerprintSHA256(key ssh.PublicKey) string {
+	return ssh.FingerprintSHA256(key)
+}
+
+// keyToBytes converts a bubbletea KeyMsg to the ANSI byte sequence for the SSH terminal.
+func keyToBytes(msg tea.KeyMsg) []byte {
+	// Map special keys to their ANSI escape sequences.
+	switch msg.Type {
+	case tea.KeyEnter:
+		return []byte{'\r'}
+	case tea.KeyBackspace:
+		return []byte{127}
+	case tea.KeyDelete:
+		return []byte{'\x1b', '[', '3', '~'}
+	case tea.KeyTab:
+		return []byte{'\t'}
+	case tea.KeySpace:
+		return []byte{' '}
+	case tea.KeyEscape:
+		return []byte{'\x1b'}
+	case tea.KeyCtrlC:
+		return []byte{3}
+	case tea.KeyCtrlD:
+		return []byte{4}
+	case tea.KeyCtrlZ:
+		return []byte{26}
+	case tea.KeyCtrlA:
+		return []byte{1}
+	case tea.KeyCtrlE:
+		return []byte{5}
+	case tea.KeyCtrlK:
+		return []byte{11}
+	case tea.KeyCtrlU:
+		return []byte{21}
+	case tea.KeyCtrlW:
+		return []byte{23}
+	case tea.KeyUp:
+		return []byte{'\x1b', '[', 'A'}
+	case tea.KeyDown:
+		return []byte{'\x1b', '[', 'B'}
+	case tea.KeyRight:
+		return []byte{'\x1b', '[', 'C'}
+	case tea.KeyLeft:
+		return []byte{'\x1b', '[', 'D'}
+	case tea.KeyHome:
+		return []byte{'\x1b', '[', 'H'}
+	case tea.KeyEnd:
+		return []byte{'\x1b', '[', 'F'}
+	case tea.KeyPgUp:
+		return []byte{'\x1b', '[', '5', '~'}
+	case tea.KeyPgDown:
+		return []byte{'\x1b', '[', '6', '~'}
+	case tea.KeyRunes:
+		return []byte(string(msg.Runes))
+	default:
+		// For any other key, send the raw string representation.
+		return []byte(msg.String())
 	}
-	return strings.Join(parts[:], ":")
 }
 
 func main() {

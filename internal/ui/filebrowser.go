@@ -170,7 +170,7 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 			} else if m.focus == panelRemote && len(m.remoteFiles) > 0 {
 				f := m.remoteFiles[m.remoteCursor]
 				if f.IsDir {
-					m.remoteDir = m.remoteDir + "/" + f.Name
+					m.remoteDir = joinRemotePath(m.remoteDir, f.Name)
 					m.remoteCursor = 0
 					return m, refreshRemoteCmd(m.client, m.remoteDir)
 				}
@@ -196,12 +196,12 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				}
 			}
 
-		case "ctrl+u", "T":
+		case "ctrl+u":
 			if !m.transferring && len(m.localFiles) > 0 {
 				f := m.localFiles[m.localCursor]
 				if !f.IsDir() {
 					localPath := filepath.Join(m.localDir, f.Name())
-					remotePath := m.remoteDir + "/" + f.Name()
+					remotePath := joinRemotePath(m.remoteDir, f.Name())
 					m.transferring = true
 					m.statusMsg = "Uploading " + f.Name() + "..."
 					client := m.client
@@ -212,11 +212,43 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 				}
 			}
 
+		case "T":
+			// Context-aware transfer: upload if local panel focused, download if remote panel focused.
+			if !m.transferring {
+				if m.focus == panelLocal && len(m.localFiles) > 0 {
+					f := m.localFiles[m.localCursor]
+					if !f.IsDir() {
+						localPath := filepath.Join(m.localDir, f.Name())
+						remotePath := joinRemotePath(m.remoteDir, f.Name())
+						m.transferring = true
+						m.statusMsg = "Uploading " + f.Name() + "..."
+						client := m.client
+						return m, func() tea.Msg {
+							err := client.UploadFile(localPath, remotePath)
+							return TransferDoneMsg{Err: err}
+						}
+					}
+				} else if m.focus == panelRemote && len(m.remoteFiles) > 0 {
+					f := m.remoteFiles[m.remoteCursor]
+					if !f.IsDir {
+						remotePath := joinRemotePath(m.remoteDir, f.Name)
+						m.transferring = true
+						m.statusMsg = "Downloading " + f.Name + "..."
+						client := m.client
+						localDir := m.localDir
+						return m, func() tea.Msg {
+							err := client.DownloadFile(remotePath, localDir)
+							return TransferDoneMsg{Err: err}
+						}
+					}
+				}
+			}
+
 		case "ctrl+d":
 			if !m.transferring && len(m.remoteFiles) > 0 {
 				f := m.remoteFiles[m.remoteCursor]
 				if !f.IsDir {
-					remotePath := m.remoteDir + "/" + f.Name
+					remotePath := joinRemotePath(m.remoteDir, f.Name)
 					m.transferring = true
 					m.statusMsg = "Downloading " + f.Name + "..."
 					client := m.client
@@ -415,7 +447,7 @@ func (m FileBrowserModel) SelectedRemoteFile() string {
 	if len(m.remoteFiles) == 0 {
 		return ""
 	}
-	return m.remoteDir + "/" + m.remoteFiles[m.remoteCursor].Name
+	return joinRemotePath(m.remoteDir, m.remoteFiles[m.remoteCursor].Name)
 }
 
 func truncate(s string, n int) string {
@@ -430,4 +462,13 @@ func truncatePath(s string, n int) string {
 		return s
 	}
 	return "…" + s[len(s)-n+1:]
+}
+
+// joinRemotePath joins a remote directory and a filename, avoiding double slashes.
+func joinRemotePath(dir, name string) string {
+	dir = strings.TrimRight(dir, "/")
+	if dir == "" {
+		return "/" + name
+	}
+	return dir + "/" + name
 }
