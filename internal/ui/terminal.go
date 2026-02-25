@@ -58,6 +58,11 @@ func (m *TerminalModel) SetProgram(p *tea.Program) {
 	m.program = p
 }
 
+// SetStdinForTest sets the stdin writer for testing purposes.
+func (m *TerminalModel) SetStdinForTest(w io.WriteCloser) {
+	m.stdin = w
+}
+
 // StartSession starts the SSH terminal session.
 func (m *TerminalModel) StartSession() error {
 	session, err := m.client.NewSession()
