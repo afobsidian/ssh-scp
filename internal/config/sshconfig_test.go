@@ -572,6 +572,7 @@ func TestParseSSHConfigPubkeyAcceptedKeyTypes(t *testing.T) {
 	input := `
 Host keytype
     HostName keytype.example.com
+    User deploy
     PubkeyAcceptedKeyTypes ssh-rsa,ssh-ed25519
 `
 	hosts := ParseSSHConfig(strings.NewReader(input))
@@ -653,5 +654,27 @@ func TestToConnectionAllFields(t *testing.T) {
 	}
 	if c.ProxyJump != "bastion" {
 		t.Errorf("ProxyJump = %q", c.ProxyJump)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ParseSSHConfig — hosts without User are filtered out
+// ---------------------------------------------------------------------------
+
+func TestParseSSHConfigFiltersNoUser(t *testing.T) {
+	input := `
+Host withuser
+    HostName 10.0.0.1
+    User admin
+
+Host nouser
+    HostName 10.0.0.2
+`
+	hosts := ParseSSHConfig(strings.NewReader(input))
+	if len(hosts) != 1 {
+		t.Fatalf("expected 1 host (nouser filtered), got %d", len(hosts))
+	}
+	if hosts[0].Alias != "withuser" {
+		t.Errorf("remaining host = %q, want %q", hosts[0].Alias, "withuser")
 	}
 }

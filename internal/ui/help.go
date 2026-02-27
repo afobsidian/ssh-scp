@@ -6,19 +6,19 @@ import (
 
 var helpContent = `
   File Browser
-  Ctrl+←/→  Switch between local and remote panels
+  ^←/→      Switch between local and remote panels
   Tab       Switch between local and remote panels
-  Ctrl+T    Transfer selected file (upload or download)
-  Ctrl+K    Create new directory
-  Ctrl+D    Delete selected file/directory
-  Ctrl+R    Rename selected file/directory
-  Ctrl+]    Switch to next tab
-  Ctrl+N    New connection tab
-  Ctrl+W    Close current tab
+  ^T        Transfer selected file (upload or download)
+  ^K        Create new directory
+  ^D        Delete selected file/directory
+  ^R        Rename selected file/directory
+  ^]        Switch to next tab
+  ^N        New connection tab
+  ^W        Close current tab
   Enter     Navigate into directory / edit text file
   Backspace Go up one directory
   ?         Toggle this help overlay
-  Ctrl+C    Quit
+  ^C        Quit
 
   Editor (Vim-style)
   Modes: NORMAL → i/I/a/A/o/O → INSERT, v → VISUAL, : → COMMAND, / → FIND
@@ -28,20 +28,20 @@ var helpContent = `
   w/b/e         Word forward / backward / end
   0/^/$         Line start / first non-blank / line end
   gg/G          Go to first / last line
-  Ctrl+D/U      Half-page down / up
-  Ctrl+F/B      Full page down / up
+  ^D/U          Half-page down / up
+  ^F/B          Full page down / up
   dd/yy/cc      Delete / yank / change line
   x/X           Delete char forward / backward
   p/P           Paste after / before cursor
   r<char>       Replace character under cursor
   J             Join current line with next
-  u / Ctrl+R    Undo / redo
+  u / ^R        Undo / redo
   /term         Search forward     ?term — search backward
   n/N           Next / previous search match
   :w  :q  :wq   Save / quit / save & quit
   :<number>     Go to line
   Esc           Close editor (from normal mode)
-  Ctrl+S        Save (any mode)
+  ^S            Save (any mode)
 `
 
 var helpStyle = lipgloss.NewStyle().

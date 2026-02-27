@@ -670,7 +670,7 @@ func (m FileBrowserModel) View() string {
 	}
 
 	statusLine := statusBarStyle.Render(
-		fmt.Sprintf(" ←/→: panels • Ctrl+T: transfer • Ctrl+K: mkdir • Ctrl+D: delete • Ctrl+R: rename | %s", m.statusMsg),
+		fmt.Sprintf(" ←/→: panels • ^T: transfer • ^K: mkdir • ^D: delete • ^R: rename | %s", m.statusMsg),
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panels, statusLine)

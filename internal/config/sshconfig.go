@@ -159,7 +159,15 @@ func ParseSSHConfig(r io.Reader) []SSHHost {
 		applyDefaults(&hosts[i], &wildcard)
 	}
 
-	return hosts
+	// Filter out hosts without a User — they can't be used for connections.
+	filtered := hosts[:0]
+	for _, h := range hosts {
+		if h.User != "" {
+			filtered = append(filtered, h)
+		}
+	}
+
+	return filtered
 }
 
 // applyDefaults fills empty fields in dst from the wildcard defaults.

@@ -1866,7 +1866,7 @@ func TestFBRenameRemote(t *testing.T) {
 
 	// Press Enter
 	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
-	m, cmd := m.Update(enterKey)
+	_, cmd := m.Update(enterKey)
 	if cmd == nil {
 		t.Error("remote rename should return a command")
 	}
@@ -1936,7 +1936,7 @@ func TestFBFileOpDoneRefreshes(t *testing.T) {
 
 func TestFBFileOpDoneErrorNoRefresh(t *testing.T) {
 	m := FileBrowserModel{height: 30}
-	m, cmd := m.Update(FileOpDoneMsg{Op: opMkDir, Err: os.ErrPermission})
+	_, cmd := m.Update(FileOpDoneMsg{Op: opMkDir, Err: os.ErrPermission})
 	if cmd != nil {
 		t.Error("failed file op should not return a refresh command")
 	}

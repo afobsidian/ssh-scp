@@ -517,7 +517,7 @@ func (m AppModel) renderMain() string {
 
 	statusLine := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#555555")).
-		Render(" Ctrl+]: next tab • Ctrl+N: new tab • Ctrl+W: close tab • ?: help • Ctrl+C: quit" + errLine)
+		Render(" ^]: next tab • ^N: new tab • ^W: close tab • ?: help • ^C: quit" + errLine)
 
 	return lipgloss.JoinVertical(lipgloss.Left, statusLine, tabBar, body)
 }

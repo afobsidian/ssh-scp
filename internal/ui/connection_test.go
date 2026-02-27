@@ -20,8 +20,8 @@ func TestConnItemTitle(t *testing.T) {
 		Port:     "22",
 	}, source: "recent"}
 	got := r.Title()
-	if got != "admin@example.com:22" {
-		t.Errorf("Title = %q, want %q", got, "admin@example.com:22")
+	if got != "example.com" {
+		t.Errorf("Title = %q, want %q", got, "example.com")
 	}
 }
 
@@ -31,22 +31,34 @@ func TestConnItemTitleNoUser(t *testing.T) {
 		Port: "22",
 	}, source: "ssh-config"}
 	got := r.Title()
-	if got != "example.com:22" {
-		t.Errorf("Title = %q, want %q", got, "example.com:22")
+	if got != "example.com" {
+		t.Errorf("Title = %q, want %q", got, "example.com")
+	}
+}
+
+func TestConnItemTitleWithName(t *testing.T) {
+	r := connItem{conn: config.Connection{
+		Name: "router_18",
+		Host: "172.16.0.246",
+		Port: "22",
+	}, source: "ssh-config"}
+	got := r.Title()
+	if got != "router_18" {
+		t.Errorf("Title = %q, want %q", got, "router_18")
 	}
 }
 
 func TestConnItemDescriptionRecent(t *testing.T) {
-	r := connItem{conn: config.Connection{Name: "my server"}, source: "recent"}
-	want := "[recent] my server"
+	r := connItem{conn: config.Connection{Name: "my server", Username: "admin", Host: "example.com", Port: "22"}, source: "recent"}
+	want := "admin@example.com:22"
 	if r.Description() != want {
 		t.Errorf("Description = %q, want %q", r.Description(), want)
 	}
 }
 
-func TestConnItemDescriptionSSHConfig(t *testing.T) {
-	r := connItem{conn: config.Connection{Name: "prod", Host: "prod.example.com"}, source: "ssh-config"}
-	want := "[~/.ssh/config] prod"
+func TestConnItemDescriptionNoUser(t *testing.T) {
+	r := connItem{conn: config.Connection{Host: "example.com", Port: "22"}, source: "recent"}
+	want := "example.com:22"
 	if r.Description() != want {
 		t.Errorf("Description = %q, want %q", r.Description(), want)
 	}
@@ -601,8 +613,8 @@ func TestConnectionModelViewListFocused(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConnItemDescriptionNoName(t *testing.T) {
-	r := connItem{conn: config.Connection{Host: "myhost.com"}, source: "recent"}
-	want := "[recent] myhost.com"
+	r := connItem{conn: config.Connection{Host: "myhost.com", Port: "22"}, source: "recent"}
+	want := "myhost.com:22"
 	if r.Description() != want {
 		t.Errorf("Description = %q, want %q", r.Description(), want)
 	}
@@ -953,9 +965,9 @@ func TestViewNoRecentLoginsWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestViewRecentLoginsMaxFive(t *testing.T) {
+func TestViewRecentLoginsMaxEight(t *testing.T) {
 	var conns []config.Connection
-	for i := 1; i <= 8; i++ {
+	for i := 1; i <= 10; i++ {
 		conns = append(conns, config.Connection{
 			Host: fmt.Sprintf("h%d", i), Port: "22", Username: "u",
 		})
@@ -965,11 +977,11 @@ func TestViewRecentLoginsMaxFive(t *testing.T) {
 	m.width = 120
 	m.height = 40
 	view := m.View()
-	if !strings.Contains(view, "u@h5:22") {
-		t.Error("should show up to 5 recent logins")
+	if !strings.Contains(view, "u@h8:22") {
+		t.Error("should show up to 8 recent logins")
 	}
-	if strings.Contains(view, "u@h6:22") {
-		t.Error("should not show 6th recent login")
+	if strings.Contains(view, "u@h9:22") {
+		t.Error("should not show 9th recent login")
 	}
 }
 

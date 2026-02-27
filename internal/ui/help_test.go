@@ -14,7 +14,7 @@ func TestRenderHelpNonEmpty(t *testing.T) {
 
 func TestRenderHelpContainsBindings(t *testing.T) {
 	got := RenderHelp(120, 50)
-	bindings := []string{"Ctrl+T", "Ctrl+K", "Ctrl+D", "Ctrl+R", "Ctrl+N", "Ctrl+W", "Tab", "Enter", "Backspace", "Ctrl+C"}
+	bindings := []string{"^T", "^K", "^D", "^R", "^N", "^W", "Tab", "Enter", "Backspace", "^C"}
 	for _, b := range bindings {
 		if !strings.Contains(got, b) {
 			t.Errorf("help should contain %q", b)
@@ -37,7 +37,7 @@ func TestRenderHelpContainsEditorBindings(t *testing.T) {
 	editorBindings := []string{
 		"Editor", "Vim", "NORMAL", "INSERT", "VISUAL", "COMMAND", "FIND",
 		"h/j/k/l", "dd", "yy", "Undo", "redo", ":w", ":q", ":wq",
-		"Ctrl+S",
+		"^S",
 	}
 	for _, b := range editorBindings {
 		if !strings.Contains(got, b) {

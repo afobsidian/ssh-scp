@@ -69,22 +69,16 @@ type connItem struct {
 }
 
 func (c connItem) Title() string {
-	title := fmt.Sprintf("%s@%s:%s", c.conn.Username, c.conn.Host, c.conn.Port)
-	if c.conn.Username == "" {
-		title = fmt.Sprintf("%s:%s", c.conn.Host, c.conn.Port)
+	if c.conn.Name != "" {
+		return c.conn.Name
 	}
-	return title
+	return c.conn.Host
 }
 func (c connItem) Description() string {
-	tag := "recent"
-	if c.source == "ssh-config" {
-		tag = "~/.ssh/config"
+	if c.conn.Username == "" {
+		return fmt.Sprintf("%s:%s", c.conn.Host, c.conn.Port)
 	}
-	name := c.conn.Name
-	if name == "" {
-		name = c.conn.Host
-	}
-	return fmt.Sprintf("[%s] %s", tag, name)
+	return fmt.Sprintf("%s@%s:%s", c.conn.Username, c.conn.Host, c.conn.Port)
 }
 func (c connItem) FilterValue() string {
 	return c.conn.Host + " " + c.conn.Name
@@ -201,8 +195,8 @@ func (m ConnectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.activePane == paneRecent {
 				// Select from recent logins.
 				max := len(m.cfg.RecentConnections)
-				if max > 5 {
-					max = 5
+				if max > 8 {
+					max = 8
 				}
 				if m.recentIdx < max {
 					m.fillForm(m.cfg.RecentConnections[m.recentIdx])
@@ -320,11 +314,11 @@ func (m ConnectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// recentMax returns the number of visible recent entries (capped at 5).
+// recentMax returns the number of visible recent entries (capped at 8).
 func (m *ConnectionModel) recentMax() int {
 	n := len(m.cfg.RecentConnections)
-	if n > 5 {
-		n = 5
+	if n > 8 {
+		n = 8
 	}
 	return n
 }
@@ -516,59 +510,86 @@ func (m ConnectionModel) View() string {
 	box := boxStyle.Render(form)
 
 	title := titleStyle.Render("SSH TUI - New Connection")
-	var statusMsg string
+
+	// Status bar — always present with a max width to prevent layout disruption.
+	maxWidth := 44 // inputBoxStyle width (50) minus border/padding (6)
+	if m.width > 60 {
+		maxWidth = m.width/2 - 6
+	}
+
+	var statusText string
 	if m.connecting {
-		statusMsg = "\n" + lipgloss.NewStyle().
+		statusText = "⟳  Connecting to " + m.connectTarget + "…"
+		if len(statusText) > maxWidth && maxWidth > 3 {
+			statusText = statusText[:maxWidth-1] + "…"
+		}
+		statusText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#7D56F4")).Bold(true).
-			Render("⟳  Connecting to "+m.connectTarget+"…")
+			Render(statusText)
 	} else if m.err != "" {
 		errText := "⚠  " + m.err
-		// Truncate error to fit within the form box width (minus border/padding).
-		maxWidth := 46 // inputBoxStyle width (50) minus padding (4)
-		if m.width > 60 {
-			maxWidth = m.width/2 - 4
-		}
 		if len(errText) > maxWidth && maxWidth > 3 {
 			errText = errText[:maxWidth-1] + "…"
 		}
-		statusMsg = "\n" + errorStyle.Render(errText)
+		statusText = errorStyle.Render(errText)
+	} else {
+		statusText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#555555")).
+			Render("Enter connection details and press Enter")
 	}
+	statusMsg := statusText
 
 	// Recent logins section.
 	var recentSection string
 	if len(m.cfg.RecentConnections) > 0 {
-		recentHeaderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
-		recentHeader := recentHeaderStyle.Render("Recent Logins")
+		recentTitleBarStyle := lipgloss.NewStyle().Padding(0, 0, 0, 2)
+		recentTitleStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color("62")).
+			Foreground(lipgloss.Color("230")).
+			Padding(0, 1)
+		recentHeader := recentTitleBarStyle.Render(recentTitleStyle.Render("Recent Logins"))
+
+		normalStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
+			Padding(0, 0, 0, 2)
+		selectedStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(lipgloss.Color("#7D56F4")).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Padding(0, 0, 0, 1)
+
 		var recentRows []string
 		max := len(m.cfg.RecentConnections)
-		if max > 5 {
-			max = 5
+		if max > 8 {
+			max = 8
 		}
 		for i := 0; i < max; i++ {
 			c := m.cfg.RecentConnections[i]
-			label := fmt.Sprintf("%s@%s:%s", c.Username, c.Host, c.Port)
-			if c.Username == "" {
+			var label string
+			if c.Name != "" {
+				label = c.Name
+			} else if c.Username != "" {
+				label = fmt.Sprintf("%s@%s:%s", c.Username, c.Host, c.Port)
+			} else {
 				label = fmt.Sprintf("%s:%s", c.Host, c.Port)
 			}
 			if m.activePane == paneRecent && i == m.recentIdx {
-				selStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
-				recentRows = append(recentRows, selStyle.Render(" ▸ "+label))
+				recentRows = append(recentRows, selectedStyle.Render(label))
 			} else {
-				entryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
-				recentRows = append(recentRows, entryStyle.Render("   "+label))
+				recentRows = append(recentRows, normalStyle.Render(label))
 			}
 		}
-		recentContent := recentHeader + "\n" + strings.Join(recentRows, "\n")
+		recentContent := recentHeader + "\n\n" + strings.Join(recentRows, "\n")
 		var recentBoxStyle lipgloss.Style
 		if m.activePane == paneRecent {
 			recentBoxStyle = focusedInputBoxStyle.Width(46)
 		} else {
 			recentBoxStyle = dimBoxStyle.Width(46)
 		}
-		recentSection = "\n" + recentBoxStyle.Render(recentContent)
+		recentSection = recentBoxStyle.Render(recentContent)
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left, title, "", box, "", statusMsg+recentSection)
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", box, statusMsg, recentSection)
 
 	if m.hasItems {
 		listView := m.connList.View()

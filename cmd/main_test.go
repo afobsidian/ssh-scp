@@ -756,7 +756,7 @@ func TestAppModelViewDispatch(t *testing.T) {
 	m.width = 80
 	m.height = 40
 	v = m.View()
-	if !strings.Contains(v, "Ctrl") {
+	if !strings.Contains(v, "^C") {
 		t.Error("help view should contain key bindings")
 	}
 }
