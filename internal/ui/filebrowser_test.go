@@ -521,16 +521,24 @@ func TestFBRemoteEnterFile(t *testing.T) {
 		focus:     panelRemote,
 		remoteDir: "/home/user",
 		remoteFiles: []sshclient.RemoteFile{
-			{Name: "file.txt", IsDir: false},
+			{Name: "file.txt", IsDir: false, Size: 512},
 		},
 		remoteCursor: 0,
 		height:       30,
 	}
 	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	m, _ = m.Update(enterMsg)
+	m, cmd := m.Update(enterMsg)
 	// Should not change directory
 	if m.remoteDir != "/home/user" {
 		t.Errorf("remoteDir should not change for file, got %q", m.remoteDir)
+	}
+	// Should emit OpenEditorMsg
+	if cmd == nil {
+		t.Fatal("Enter on remote file should return a command")
+	}
+	msg := cmd()
+	if _, ok := msg.(OpenEditorMsg); !ok {
+		t.Errorf("expected OpenEditorMsg, got %T", msg)
 	}
 }
 
@@ -564,7 +572,7 @@ func TestFBRemoteBackspaceAtRoot(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// FileBrowserModel - Enter on local file (non-dir)
+// FileBrowserModel - Enter on local file (non-dir) emits OpenEditorMsg
 // ---------------------------------------------------------------------------
 
 func TestFBLocalEnterFile(t *testing.T) {
@@ -580,9 +588,104 @@ func TestFBLocalEnterFile(t *testing.T) {
 	// file.txt should be at cursor 0
 	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
 	oldDir := m.localDir
-	m, _ = m.Update(enterMsg)
+	m, cmd := m.Update(enterMsg)
 	if m.localDir != oldDir {
 		t.Errorf("localDir should not change for file, got %q", m.localDir)
+	}
+	if cmd == nil {
+		t.Fatal("Enter on local file should return a command")
+	}
+	msg := cmd()
+	openMsg, ok := msg.(OpenEditorMsg)
+	if !ok {
+		t.Fatalf("expected OpenEditorMsg, got %T", msg)
+	}
+	if openMsg.IsRemote {
+		t.Error("local file should have IsRemote=false")
+	}
+	if !strings.HasSuffix(openMsg.Path, "file.txt") {
+		t.Errorf("path = %q, want ending with file.txt", openMsg.Path)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FileBrowserModel - Enter on remote file (non-dir) emits OpenEditorMsg
+// ---------------------------------------------------------------------------
+
+func TestFBRemoteEnterFileOpensEditor(t *testing.T) {
+	m := FileBrowserModel{
+		focus:     panelRemote,
+		remoteDir: "/home/user",
+		remoteFiles: []sshclient.RemoteFile{
+			{Name: "notes.txt", IsDir: false, Size: 100},
+		},
+		remoteCursor: 0,
+		height:       30,
+	}
+	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterMsg)
+	if m.remoteDir != "/home/user" {
+		t.Errorf("remoteDir should not change for file, got %q", m.remoteDir)
+	}
+	if cmd == nil {
+		t.Fatal("Enter on remote file should return a command")
+	}
+	msg := cmd()
+	openMsg, ok := msg.(OpenEditorMsg)
+	if !ok {
+		t.Fatalf("expected OpenEditorMsg, got %T", msg)
+	}
+	if !openMsg.IsRemote {
+		t.Error("remote file should have IsRemote=true")
+	}
+	if openMsg.Path != "/home/user/notes.txt" {
+		t.Errorf("path = %q, want /home/user/notes.txt", openMsg.Path)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FileBrowserModel - Enter on file too large to edit
+// ---------------------------------------------------------------------------
+
+func TestFBLocalEnterFileTooLarge(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file that exceeds MaxEditableSize
+	bigData := make([]byte, MaxEditableSize+1)
+	if err := os.WriteFile(dir+"/big.bin", bigData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewFileBrowserModel(nil, dir, "/remote")
+	m.height = 30
+	m.width = 80
+
+	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterMsg)
+	if cmd != nil {
+		t.Error("too large file should not return a command")
+	}
+	if !strings.Contains(m.statusMsg, "too large") {
+		t.Errorf("statusMsg = %q, want 'too large' message", m.statusMsg)
+	}
+}
+
+func TestFBRemoteEnterFileTooLarge(t *testing.T) {
+	m := FileBrowserModel{
+		focus:     panelRemote,
+		remoteDir: "/home/user",
+		remoteFiles: []sshclient.RemoteFile{
+			{Name: "huge.bin", IsDir: false, Size: MaxEditableSize + 1},
+		},
+		remoteCursor: 0,
+		height:       30,
+	}
+	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterMsg)
+	if cmd != nil {
+		t.Error("too large remote file should not return a command")
+	}
+	if !strings.Contains(m.statusMsg, "too large") {
+		t.Errorf("statusMsg = %q, want 'too large' message", m.statusMsg)
 	}
 }
 

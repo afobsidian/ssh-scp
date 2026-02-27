@@ -61,6 +61,14 @@ func Save(cfg *Config) error {
 	return os.WriteFile(p, data, 0600)
 }
 
+// RemoveRecent removes a connection at the given index from the recent list.
+func (c *Config) RemoveRecent(idx int) {
+	if idx < 0 || idx >= len(c.RecentConnections) {
+		return
+	}
+	c.RecentConnections = append(c.RecentConnections[:idx], c.RecentConnections[idx+1:]...)
+}
+
 // AddRecent adds or updates a connection in the recent list.
 func (c *Config) AddRecent(conn Connection) {
 	for i, rc := range c.RecentConnections {

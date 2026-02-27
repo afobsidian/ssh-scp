@@ -1418,3 +1418,306 @@ func TestAppModelWindowSizeUpdatesBrowsers(t *testing.T) {
 		t.Errorf("dims = %dx%d, want 200x80", am.width, am.height)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// AppModel - EditorContentLoadedMsg
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorContentLoadedSuccess(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	msg := ui.EditorContentLoadedMsg{
+		Path:     "/tmp/test.txt",
+		Content:  "hello world",
+		IsRemote: false,
+	}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor == nil {
+		t.Fatal("editor should be set after EditorContentLoadedMsg")
+	}
+	if am.editor.Content() != "hello world" {
+		t.Errorf("editor content = %q", am.editor.Content())
+	}
+}
+
+func TestAppModelEditorContentLoadedRemote(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	msg := ui.EditorContentLoadedMsg{
+		Path:     "/remote/file.txt",
+		Content:  "remote data",
+		IsRemote: true,
+	}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor == nil {
+		t.Fatal("editor should be set")
+	}
+}
+
+func TestAppModelEditorContentLoadedError(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	msg := ui.EditorContentLoadedMsg{
+		Err: fmt.Errorf("permission denied"),
+	}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor != nil {
+		t.Error("editor should be nil on error")
+	}
+	if !strings.Contains(am.err, "Failed to open") {
+		t.Errorf("err = %q, want 'Failed to open' message", am.err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - EditorSaveDoneMsg forwarded to editor
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorSaveDoneForwarded(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "data")
+	editor.SetDimensions(80, 40)
+	m.editor = &editor
+
+	msg := ui.EditorSaveDoneMsg{Err: nil}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor == nil {
+		t.Fatal("editor should still be set after save done")
+	}
+}
+
+func TestAppModelEditorSaveDoneNilEditor(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.editor = nil
+	// Should not panic
+	msg := ui.EditorSaveDoneMsg{Err: nil}
+	result, _ := m.Update(msg)
+	_ = result.(AppModel)
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - EditorCloseMsg
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorCloseMsg(t *testing.T) {
+	dir := t.TempDir()
+	m := initialModel()
+	m.state = stateMain
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "data")
+	m.editor = &editor
+	m.browsers = []ui.FileBrowserModel{ui.NewFileBrowserModel(nil, dir, "/remote")}
+	m.tabs = []ui.Tab{{Title: "test"}}
+	m.activeTab = 0
+
+	msg := ui.EditorCloseMsg{}
+	result, cmd := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor != nil {
+		t.Error("editor should be nil after EditorCloseMsg")
+	}
+	if cmd == nil {
+		t.Error("EditorCloseMsg should return remote refresh command")
+	}
+}
+
+func TestAppModelEditorCloseMsgNoBrowser(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "data")
+	m.editor = &editor
+	// No browsers/tabs set
+
+	msg := ui.EditorCloseMsg{}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.editor != nil {
+		t.Error("editor should be nil after close")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - OpenEditorMsg local
+// ---------------------------------------------------------------------------
+
+func TestAppModelOpenEditorMsgLocal(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+
+	msg := ui.OpenEditorMsg{Path: "/tmp/test.txt", IsRemote: false}
+	result, cmd := m.Update(msg)
+	_ = result.(AppModel)
+	if cmd == nil {
+		t.Error("OpenEditorMsg local should return a command")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - OpenEditorMsg remote
+// ---------------------------------------------------------------------------
+
+func TestAppModelOpenEditorMsgRemote(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.clients = []*sshclient.Client{nil} // nil client
+	m.tabs = []ui.Tab{{Title: "test"}}
+	m.activeTab = 0
+
+	msg := ui.OpenEditorMsg{Path: "/remote/file.txt", IsRemote: true}
+	result, cmd := m.Update(msg)
+	_ = result.(AppModel)
+	// With nil client, the command will be returned but calling it will panic
+	// We mainly verify the code path doesn't crash before returning cmd
+	if cmd == nil {
+		t.Error("OpenEditorMsg remote with client should return a command")
+	}
+}
+
+func TestAppModelOpenEditorMsgRemoteNoClient(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.clients = nil
+	m.activeTab = 5 // out of range
+
+	msg := ui.OpenEditorMsg{Path: "/remote/file.txt", IsRemote: true}
+	result, cmd := m.Update(msg)
+	_ = result.(AppModel)
+	if cmd != nil {
+		t.Error("OpenEditorMsg remote with no client should return nil cmd")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - EditorSaveMsg local
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorSaveMsgLocal(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+
+	msg := ui.EditorSaveMsg{Path: "/tmp/test.txt", Content: "data", IsRemote: false}
+	result, cmd := m.Update(msg)
+	_ = result.(AppModel)
+	if cmd == nil {
+		t.Error("EditorSaveMsg local should return a command")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - EditorSaveMsg remote
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorSaveMsgRemote(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.clients = []*sshclient.Client{nil}
+	m.tabs = []ui.Tab{{Title: "test"}}
+	m.activeTab = 0
+
+	msg := ui.EditorSaveMsg{Path: "/remote/file.txt", Content: "data", IsRemote: true}
+	result, cmd := m.Update(msg)
+	_ = result.(AppModel)
+	if cmd == nil {
+		t.Error("EditorSaveMsg remote with client should return a command")
+	}
+}
+
+func TestAppModelEditorSaveMsgRemoteNoClient(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.clients = nil
+	m.activeTab = 5
+
+	msg := ui.EditorSaveMsg{Path: "/remote/file.txt", Content: "data", IsRemote: true}
+	_, cmd := m.Update(msg)
+	if cmd != nil {
+		t.Error("EditorSaveMsg remote with no client should return nil cmd")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - Editor captures keys when active
+// ---------------------------------------------------------------------------
+
+func TestAppModelEditorCapturesKeys(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.width = 80
+	m.height = 40
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "hello")
+	editor.SetDimensions(80, 36)
+	m.editor = &editor
+
+	// Send a normal key - should be handled by editor, not toggle help
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}
+	result, _ := m.Update(msg)
+	am := result.(AppModel)
+	if am.showHelp {
+		t.Error("key should go to editor, not toggle help")
+	}
+	if am.editor == nil {
+		t.Error("editor should still be active")
+	}
+}
+
+func TestAppModelEditorCtrlCQuits(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "hello")
+	m.editor = &editor
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	_, cmd := m.Update(msg)
+	if cmd == nil {
+		t.Error("Ctrl+C with editor should return quit command")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AppModel - renderMain with editor
+// ---------------------------------------------------------------------------
+
+func TestRenderMainWithEditor(t *testing.T) {
+	m := initialModel()
+	m.state = stateMain
+	m.width = 80
+	m.height = 40
+	m.tabs = []ui.Tab{{Title: "test"}}
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "hello\nworld")
+	editor.SetDimensions(80, 36)
+	m.editor = &editor
+
+	view := m.renderMain()
+	if view == "" {
+		t.Error("renderMain with editor should produce output")
+	}
+	if !strings.Contains(view, "test.txt") {
+		t.Error("should contain the editor file name")
+	}
+}
+
+func TestRenderMainEditorTakesPrecedence(t *testing.T) {
+	dir := t.TempDir()
+	m := initialModel()
+	m.state = stateMain
+	m.width = 80
+	m.height = 40
+	m.tabs = []ui.Tab{{Title: "test"}}
+	browser := ui.NewFileBrowserModel(nil, dir, "/home")
+	m.browsers = []ui.FileBrowserModel{browser}
+	m.activeTab = 0
+	editor := ui.NewEditorModel("/tmp/test.txt", false, "editor content")
+	editor.SetDimensions(80, 36)
+	m.editor = &editor
+
+	view := m.renderMain()
+	// Editor view should take precedence over file browser
+	if !strings.Contains(view, "test.txt") {
+		t.Error("editor view should be shown instead of browser")
+	}
+}

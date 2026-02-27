@@ -32,6 +32,20 @@ func TestRenderHelpContainsDescriptions(t *testing.T) {
 	}
 }
 
+func TestRenderHelpContainsEditorBindings(t *testing.T) {
+	got := RenderHelp(120, 60)
+	editorBindings := []string{
+		"Editor", "Vim", "NORMAL", "INSERT", "VISUAL", "COMMAND", "FIND",
+		"h/j/k/l", "dd", "yy", "Undo", "redo", ":w", ":q", ":wq",
+		"Ctrl+S",
+	}
+	for _, b := range editorBindings {
+		if !strings.Contains(got, b) {
+			t.Errorf("help should contain editor binding %q", b)
+		}
+	}
+}
+
 func TestRenderHelpSmallDimensions(t *testing.T) {
 	got := RenderHelp(20, 10)
 	if got == "" {

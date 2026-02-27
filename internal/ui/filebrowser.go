@@ -194,6 +194,13 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 					m.localCursor = 0
 					m.localScroll = 0
 					m.refreshLocal()
+				} else if f.Size() > MaxEditableSize {
+					m.statusMsg = "File too large to edit (max 1 MB)"
+				} else {
+					path := filepath.Join(m.localDir, f.Name())
+					return m, func() tea.Msg {
+						return OpenEditorMsg{Path: path, IsRemote: false}
+					}
 				}
 			} else if m.focus == panelRemote && len(m.remoteFiles) > 0 {
 				f := m.remoteFiles[m.remoteCursor]
@@ -202,6 +209,13 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 					m.remoteCursor = 0
 					m.remoteScroll = 0
 					return m, refreshRemoteCmd(m.client, m.remoteDir)
+				} else if f.Size > MaxEditableSize {
+					m.statusMsg = "File too large to edit (max 1 MB)"
+				} else {
+					path := joinRemotePath(m.remoteDir, f.Name)
+					return m, func() tea.Msg {
+						return OpenEditorMsg{Path: path, IsRemote: true}
+					}
 				}
 			}
 
@@ -460,7 +474,7 @@ func (m FileBrowserModel) View() string {
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, local, remote)
 
 	statusLine := statusBarStyle.Render(
-		fmt.Sprintf(" Ctrl + ←/→: switch panels • Ctrl + U: upload • Ctrl + D: download • Enter: enter dir • Backspace: up | %s", m.statusMsg),
+		fmt.Sprintf(" Ctrl + ←/→: switch panels • Ctrl + U: upload • Ctrl + D: download • Backspace: up dir | %s", m.statusMsg),
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panels, statusLine)
@@ -494,6 +508,16 @@ func truncatePath(s string, n int) string {
 		return s
 	}
 	return "…" + s[len(s)-n+1:]
+}
+
+// RefreshLocal refreshes the local file listing.
+func (m *FileBrowserModel) RefreshLocal() {
+	m.refreshLocal()
+}
+
+// RefreshRemoteCmd returns a command to refresh the remote file listing.
+func (m FileBrowserModel) RefreshRemoteCmd() tea.Cmd {
+	return refreshRemoteCmd(m.client, m.remoteDir)
 }
 
 // joinRemotePath joins a remote directory and a filename, avoiding double slashes.

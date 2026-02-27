@@ -66,6 +66,7 @@ type AppModel struct {
 	err            string
 	bridge         *passwordBridge
 	passwordDialog ui.PasswordDialogModel
+	editor         *ui.EditorModel
 }
 
 func initialModel() AppModel {
@@ -150,7 +151,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			approvalCh: make(chan bool),
 		}
 		m.bridge = bridge
-		m.connModel.SetError("") // clear any previous error
+		m.connModel.SetConnecting(fmt.Sprintf("%s@%s:%s", conn.Username, conn.Host, conn.Port))
 		go connectWorker(conn, bridge, m.sshHosts)
 		return m, waitForBridgeMsg(bridge)
 
@@ -162,7 +163,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = stateConnection
 			return m, nil
 		}
+		m.connModel.ClearConnecting()
 		log.Printf("[AppModel] connectedMsg success: %s@%s", msg.conn.Username, msg.conn.Host)
+		m.cfg.AddRecent(msg.conn)
+		if err := config.Save(m.cfg); err != nil {
+			log.Printf("[AppModel] failed to save config: %v", err)
+		}
 		tabTitle := ui.TabTitle(msg.conn.Username, msg.conn.Host, len(m.tabs))
 		m.tabs = append(m.tabs, ui.Tab{Title: tabTitle, Connected: true})
 		m.clients = append(m.clients, msg.client)
@@ -227,6 +233,79 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+	case ui.OpenEditorMsg:
+		log.Printf("[AppModel] OpenEditorMsg: path=%s remote=%v", msg.Path, msg.IsRemote)
+		if msg.IsRemote {
+			if m.activeTab < len(m.clients) {
+				client := m.clients[m.activeTab]
+				path := msg.Path
+				return m, func() tea.Msg {
+					content, err := client.ReadFile(path)
+					if err != nil {
+						return ui.EditorContentLoadedMsg{Err: err}
+					}
+					return ui.EditorContentLoadedMsg{Path: path, Content: content, IsRemote: true}
+				}
+			}
+		} else {
+			path := msg.Path
+			return m, func() tea.Msg {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return ui.EditorContentLoadedMsg{Err: err}
+				}
+				return ui.EditorContentLoadedMsg{Path: path, Content: string(data), IsRemote: false}
+			}
+		}
+
+	case ui.EditorContentLoadedMsg:
+		if msg.Err != nil {
+			log.Printf("[AppModel] editor load error: %v", msg.Err)
+			m.err = "Failed to open file: " + msg.Err.Error()
+			return m, nil
+		}
+		log.Printf("[AppModel] editor loaded: %s (%d bytes)", msg.Path, len(msg.Content))
+		editor := ui.NewEditorModel(msg.Path, msg.IsRemote, msg.Content)
+		m.editor = &editor
+		return m, nil
+
+	case ui.EditorSaveMsg:
+		log.Printf("[AppModel] EditorSaveMsg: path=%s remote=%v", msg.Path, msg.IsRemote)
+		if msg.IsRemote {
+			if m.activeTab < len(m.clients) {
+				client := m.clients[m.activeTab]
+				path := msg.Path
+				content := msg.Content
+				return m, func() tea.Msg {
+					err := client.WriteFile(path, content)
+					return ui.EditorSaveDoneMsg{Err: err}
+				}
+			}
+		} else {
+			path := msg.Path
+			content := msg.Content
+			return m, func() tea.Msg {
+				err := os.WriteFile(path, []byte(content), 0o644)
+				return ui.EditorSaveDoneMsg{Err: err}
+			}
+		}
+
+	case ui.EditorSaveDoneMsg:
+		if m.editor != nil {
+			editor, cmd := m.editor.Update(msg)
+			m.editor = &editor
+			return m, cmd
+		}
+
+	case ui.EditorCloseMsg:
+		log.Printf("[AppModel] EditorCloseMsg")
+		m.editor = nil
+		if m.activeTab < len(m.browsers) {
+			m.browsers[m.activeTab].RefreshLocal()
+			return m, m.browsers[m.activeTab].RefreshRemoteCmd()
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		log.Printf("[AppModel] key: type=%d string=%q runes=%v alt=%v state=%d",
 			msg.Type, msg.String(), msg.Runes, msg.Alt, m.state)
@@ -239,6 +318,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			dlg, cmd := m.passwordDialog.Update(msg)
 			m.passwordDialog = dlg
+			return m, cmd
+		}
+
+		// Editor captures all keys when active (except Ctrl+C).
+		if m.state == stateMain && m.editor != nil {
+			if msg.Type == tea.KeyCtrlC {
+				m.cleanup()
+				return m, tea.Quit
+			}
+			editor, cmd := m.editor.Update(msg)
+			m.editor = &editor
 			return m, cmd
 		}
 
@@ -392,7 +482,11 @@ func (m AppModel) renderMain() string {
 	tabBar := ui.RenderTabBar(m.tabs, m.activeTab, m.width)
 
 	var body string
-	if m.activeTab < len(m.browsers) {
+	if m.editor != nil {
+		browserHeight := m.height - 4
+		m.editor.SetDimensions(m.width, browserHeight)
+		body = m.editor.View()
+	} else if m.activeTab < len(m.browsers) {
 		browserHeight := m.height - 4 // tab bar + status line
 		m.browsers[m.activeTab].SetDimensions(m.width, browserHeight)
 		body = m.browsers[m.activeTab].View()

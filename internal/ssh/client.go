@@ -348,6 +348,37 @@ func (c *Client) DownloadFile(remotePath, localDir string) (retErr error) {
 	return scpClient.CopyFromRemote(context.Background(), f, remotePath)
 }
 
+// ReadFile reads the contents of a remote file via cat.
+func (c *Client) ReadFile(path string) (string, error) {
+	log.Printf("[SSH] reading remote file: %s", path)
+	session, err := c.client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = session.Close() }()
+
+	cmd := fmt.Sprintf("cat %s", shellQuote(path))
+	out, err := session.Output(cmd)
+	if err != nil {
+		return "", fmt.Errorf("read remote file: %w", err)
+	}
+	return string(out), nil
+}
+
+// WriteFile writes content to a remote file.
+func (c *Client) WriteFile(path, content string) error {
+	log.Printf("[SSH] writing remote file: %s", path)
+	session, err := c.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = session.Close() }()
+
+	session.Stdin = strings.NewReader(content)
+	cmd := fmt.Sprintf("cat > %s", shellQuote(path))
+	return session.Run(cmd)
+}
+
 // parseLS parses `ls -la` output into RemoteFile entries.
 func parseLS(output string) []RemoteFile {
 	var files []RemoteFile
@@ -413,11 +444,13 @@ func parseLSLine(line string) *RemoteFile {
 
 	mode := parsePerm(perm)
 
+	modTime := parseLSDate(fields)
+
 	return &RemoteFile{
 		Name:    name,
 		Size:    size,
 		Mode:    mode,
-		ModTime: time.Now(),
+		ModTime: modTime,
 		IsDir:   isDir,
 	}
 }
@@ -478,4 +511,40 @@ func parsePerm(perm string) os.FileMode {
 		mode |= 0001
 	}
 	return mode
+}
+
+// parseLSDate extracts the modification time from ls -la fields.
+// ls -la date format for recent files:  "Jan 15 14:30" (fields[5..7])
+// ls -la date format for older files:   "Jan 15  2024" (fields[5..7])
+func parseLSDate(fields []string) time.Time {
+	if len(fields) < 8 {
+		return time.Time{}
+	}
+	month := fields[5]
+	day := fields[6]
+	timeOrYear := fields[7]
+
+	now := time.Now()
+
+	if strings.Contains(timeOrYear, ":") {
+		// Recent file: "Jan 15 14:30" — year is current year
+		dateStr := fmt.Sprintf("%s %s %d %s", month, day, now.Year(), timeOrYear)
+		t, err := time.Parse("Jan 2 2006 15:04", dateStr)
+		if err != nil {
+			return time.Time{}
+		}
+		// If parsed date is in the future, it's from last year
+		if t.After(now) {
+			t = t.AddDate(-1, 0, 0)
+		}
+		return t
+	}
+
+	// Older file: "Jan 15 2024" — timeOrYear is the year
+	dateStr := fmt.Sprintf("%s %s %s", month, day, timeOrYear)
+	t, err := time.Parse("Jan 2 2006", dateStr)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
