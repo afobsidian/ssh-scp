@@ -58,7 +58,11 @@ func Save(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, data, 0600)
+	if err := os.WriteFile(p, data, 0600); err != nil {
+		return err
+	}
+	FixOwnership(p)
+	return nil
 }
 
 // RemoveRecent removes a connection at the given index from the recent list.

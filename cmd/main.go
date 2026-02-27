@@ -797,7 +797,9 @@ func logPath() string {
 		if strings.HasPrefix(exeDir, cwd) || strings.Contains(exeDir, "go-build") {
 			dir := filepath.Join(cwd, ".logs")
 			_ = os.MkdirAll(dir, 0o755)
-			return filepath.Join(dir, "debug.log")
+			p := filepath.Join(dir, "debug.log")
+			config.FixOwnership(p)
+			return p
 		}
 	}
 	// Installed: use XDG state directory.
@@ -808,7 +810,9 @@ func logPath() string {
 	}
 	dir := filepath.Join(stateDir, "ssh-scp")
 	_ = os.MkdirAll(dir, 0o755)
-	return filepath.Join(dir, "debug.log")
+	p := filepath.Join(dir, "debug.log")
+	config.FixOwnership(p)
+	return p
 }
 
 func main() {
