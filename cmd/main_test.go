@@ -936,9 +936,7 @@ func TestAppModelCtrlTCyclesTabs(t *testing.T) {
 	m.browsers = []ui.FileBrowserModel{{}, {}, {}}
 	m.activeTab = 0
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}}
-	// We need to send ctrl+t. Let's use the string form.
-	msg = tea.KeyMsg{Type: tea.KeyCtrlT}
+	msg := tea.KeyMsg{Type: tea.KeyCtrlT}
 	result, _ := m.Update(msg)
 	am := result.(AppModel)
 	if am.activeTab != 1 {

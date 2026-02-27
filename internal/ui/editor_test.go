@@ -493,10 +493,11 @@ func TestJumpToNextMatch(t *testing.T) {
 	if len(m.findMatches) != 3 {
 		t.Fatalf("findMatches = %d, want 3", len(m.findMatches))
 	}
-	// Jump forward
+	// Jump forward — after executeSearch the cursor is already on match 0,
+	// so one more forward jump should move past (0,0).
 	m.jumpToNextMatch(true)
 	if m.cursorRow == 0 && m.cursorCol == 0 {
-		// jumped somewhere
+		t.Error("expected cursor to move away from (0,0) after forward jump")
 	}
 }
 
