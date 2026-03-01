@@ -1280,22 +1280,23 @@ func TestInputActiveWhenInputActive(t *testing.T) {
 }
 
 func TestInputActiveWhenConfirmDelete(t *testing.T) {
-	m := FileBrowserModel{confirmDelete: true}
+	m := FileBrowserModel{}
+	m.startInput(opDelete, "Delete 'test'? (y/yes to confirm):")
 	if !m.InputActive() {
-		t.Error("InputActive should be true when confirmDelete is set")
+		t.Error("InputActive should be true when delete input is active")
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Ctrl+K key (mkdir) — opens input dialog
+// Ctrl+Y key (mkdir) — opens input dialog
 // ---------------------------------------------------------------------------
 
-func TestFBCtrlKKeyOpensInput(t *testing.T) {
+func TestFBCtrlYKeyOpensInput(t *testing.T) {
 	m := FileBrowserModel{focus: panelLocal, height: 30}
-	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	msg := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, cmd := m.Update(msg)
 	if !m.inputActive {
-		t.Error("Ctrl+K should activate input dialog")
+		t.Error("Ctrl+Y should activate input dialog")
 	}
 	if m.inputOp != opMkDir {
 		t.Errorf("inputOp = %d, want opMkDir(%d)", m.inputOp, opMkDir)
@@ -1304,16 +1305,16 @@ func TestFBCtrlKKeyOpensInput(t *testing.T) {
 		t.Errorf("inputPrompt = %q, want to contain 'directory'", m.inputPrompt)
 	}
 	if cmd != nil {
-		t.Error("Ctrl+K should not return a command (just opens dialog)")
+		t.Error("Ctrl+Y should not return a command (just opens dialog)")
 	}
 }
 
-func TestFBCtrlKKeyRemotePanel(t *testing.T) {
+func TestFBCtrlYKeyRemotePanel(t *testing.T) {
 	m := FileBrowserModel{focus: panelRemote, height: 30}
-	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	msg := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(msg)
 	if !m.inputActive {
-		t.Error("Ctrl+K should activate input dialog on remote panel too")
+		t.Error("Ctrl+Y should activate input dialog on remote panel too")
 	}
 	if m.inputOp != opMkDir {
 		t.Errorf("inputOp = %d, want opMkDir", m.inputOp)
@@ -1335,11 +1336,14 @@ func TestFBCtrlDKeyOpensConfirm(t *testing.T) {
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, cmd := m.Update(msg)
-	if !m.confirmDelete {
-		t.Error("Ctrl+D should set confirmDelete")
+	if !m.inputActive {
+		t.Error("Ctrl+D should activate input dialog")
 	}
-	if !strings.Contains(m.statusMsg, "Delete") {
-		t.Errorf("statusMsg = %q, want Delete prompt", m.statusMsg)
+	if m.inputOp != opDelete {
+		t.Errorf("inputOp = %d, want opDelete(%d)", m.inputOp, opDelete)
+	}
+	if !strings.Contains(m.inputPrompt, "Delete") {
+		t.Errorf("inputPrompt = %q, want Delete prompt", m.inputPrompt)
 	}
 	if cmd != nil {
 		t.Error("Ctrl+D should not return a command (just opens confirm)")
@@ -1354,11 +1358,11 @@ func TestFBCtrlDKeyRemote(t *testing.T) {
 	}
 	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(msg)
-	if !m.confirmDelete {
-		t.Error("Ctrl+D should set confirmDelete on remote panel")
+	if !m.inputActive {
+		t.Error("Ctrl+D should activate input dialog on remote panel")
 	}
-	if !strings.Contains(m.statusMsg, "file.txt") {
-		t.Errorf("statusMsg = %q, should contain filename", m.statusMsg)
+	if !strings.Contains(m.inputPrompt, "file.txt") {
+		t.Errorf("inputPrompt = %q, should contain filename", m.inputPrompt)
 	}
 }
 
@@ -1366,8 +1370,8 @@ func TestFBCtrlDKeyEmptyFiles(t *testing.T) {
 	m := FileBrowserModel{focus: panelLocal, height: 30}
 	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(msg)
-	if m.confirmDelete {
-		t.Error("Ctrl+D with no files should not set confirmDelete")
+	if m.inputActive {
+		t.Error("Ctrl+D with no files should not activate input dialog")
 	}
 }
 
@@ -1431,11 +1435,11 @@ func TestFBCtrlRKeyEmptyFiles(t *testing.T) {
 
 func TestFBInputEscCancels(t *testing.T) {
 	m := FileBrowserModel{focus: panelLocal, height: 30}
-	// Ctrl+K to open mkdir dialog
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	// Ctrl+Y to open mkdir dialog
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 	if !m.inputActive {
-		t.Fatal("input should be active after Ctrl+K")
+		t.Fatal("input should be active after Ctrl+Y")
 	}
 
 	// Press Esc
@@ -1452,7 +1456,7 @@ func TestFBInputEscCancels(t *testing.T) {
 
 func TestFBInputEnterEmptyCancels(t *testing.T) {
 	m := FileBrowserModel{focus: panelLocal, height: 30}
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 
 	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
@@ -1478,8 +1482,8 @@ func TestFBInputMkDirLocal(t *testing.T) {
 	m.height = 30
 	m.focus = panelLocal
 
-	// Ctrl+K to open mkdir dialog
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	// Ctrl+Y to open mkdir dialog
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 
 	// Type "newdir"
@@ -1536,15 +1540,19 @@ func TestFBDeleteConfirmYes(t *testing.T) {
 	// Ctrl+D to initiate delete
 	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(dKey)
-	if !m.confirmDelete {
-		t.Fatal("confirmDelete should be true")
+	if !m.inputActive {
+		t.Fatal("inputActive should be true")
 	}
 
-	// Press y to confirm
-	yKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}
-	m, cmd := m.Update(yKey)
-	if m.confirmDelete {
-		t.Error("confirmDelete should be false after y")
+	// Type "yes" to confirm
+	for _, r := range "yes" {
+		rKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+		m, _ = m.Update(rKey)
+	}
+	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterKey)
+	if m.inputActive {
+		t.Error("inputActive should be false after confirming")
 	}
 	if cmd == nil {
 		t.Fatal("should return a command for delete")
@@ -1570,6 +1578,56 @@ func TestFBDeleteConfirmYes(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Delete confirmation - single 'y' confirms
+// ---------------------------------------------------------------------------
+
+func TestFBDeleteConfirmY(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/todelete2.txt", []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := NewFileBrowserModel(nil, dir, "/remote")
+	m.height = 30
+	m.focus = panelLocal
+
+	// Ctrl+D to initiate delete
+	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
+	m, _ = m.Update(dKey)
+	if !m.inputActive {
+		t.Fatal("inputActive should be true")
+	}
+
+	// Type "y" to confirm
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterKey)
+	if m.inputActive {
+		t.Error("inputActive should be false after confirming with y")
+	}
+	if cmd == nil {
+		t.Fatal("should return a command for delete")
+	}
+
+	// Execute and verify
+	result := cmd()
+	doneMsg, ok := result.(FileOpDoneMsg)
+	if !ok {
+		t.Fatalf("expected FileOpDoneMsg, got %T", result)
+	}
+	if doneMsg.Op != opDelete {
+		t.Errorf("op = %d, want opDelete", doneMsg.Op)
+	}
+	if doneMsg.Err != nil {
+		t.Errorf("unexpected error: %v", doneMsg.Err)
+	}
+
+	// Verify file was deleted
+	if _, err := os.Stat(dir + "/todelete2.txt"); !os.IsNotExist(err) {
+		t.Error("file should have been deleted")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Delete confirmation - n cancels
 // ---------------------------------------------------------------------------
 
@@ -1586,11 +1644,15 @@ func TestFBDeleteConfirmNo(t *testing.T) {
 	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(dKey)
 
-	// Press n to cancel
-	nKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")}
-	m, cmd := m.Update(nKey)
-	if m.confirmDelete {
-		t.Error("confirmDelete should be false after n")
+	// Type "no" and press enter to cancel
+	for _, r := range "no" {
+		rKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+		m, _ = m.Update(rKey)
+	}
+	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterKey)
+	if m.inputActive {
+		t.Error("inputActive should be false after cancelling")
 	}
 	if !strings.Contains(m.statusMsg, "cancelled") {
 		t.Errorf("statusMsg = %q, want 'cancelled'", m.statusMsg)
@@ -1706,7 +1768,7 @@ func TestFBKeysRoutedToInputWhenActive(t *testing.T) {
 	m.focus = panelLocal
 
 	// Open input
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 
 	// Down key should NOT move cursor (should go to input instead)
@@ -1722,7 +1784,7 @@ func TestFBKeysRoutedToInputWhenActive(t *testing.T) {
 // Keys are routed to confirm delete when active
 // ---------------------------------------------------------------------------
 
-func TestFBKeysRoutedToConfirmWhenActive(t *testing.T) {
+func TestFBKeysRoutedToInputWhenDeleteActive(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(dir+"/a.txt", []byte("x"), 0644); err != nil {
 		t.Fatal(err)
@@ -1733,17 +1795,14 @@ func TestFBKeysRoutedToConfirmWhenActive(t *testing.T) {
 	m := NewFileBrowserModel(nil, dir, "/remote")
 	m.height = 30
 	m.focus = panelLocal
-	m.confirmDelete = true
+	m.startInput(opDelete, "Delete 'a.txt'? Type 'yes' to confirm:")
 
-	// Down key should not move cursor — it's in delete confirmation mode and "down" is not "y"
+	// Down key should not move cursor — it's routed to input dialog
 	old := m.localCursor
 	downKey := tea.KeyMsg{Type: tea.KeyDown}
 	m, _ = m.Update(downKey)
 	if m.localCursor != old {
-		t.Error("cursor should not move during delete confirmation")
-	}
-	if m.confirmDelete {
-		t.Error("confirmDelete should be cleared after non-y/n key")
+		t.Error("cursor should not move during delete input")
 	}
 }
 
@@ -1757,8 +1816,8 @@ func TestFBViewShowsInputDialog(t *testing.T) {
 		width:  80,
 		height: 30,
 	}
-	// Ctrl+K to open mkdir dialog
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	// Ctrl+Y to open mkdir dialog
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 
 	view := m.View()
@@ -1791,8 +1850,8 @@ func TestFBMkDirRemote(t *testing.T) {
 		remoteDir: "/home/user",
 		height:    30,
 	}
-	// Ctrl+K to open mkdir dialog
-	mKey := tea.KeyMsg{Type: tea.KeyCtrlK}
+	// Ctrl+Y to open mkdir dialog
+	mKey := tea.KeyMsg{Type: tea.KeyCtrlY}
 	m, _ = m.Update(mKey)
 
 	// Type "newdir"
@@ -1829,13 +1888,17 @@ func TestFBDeleteRemote(t *testing.T) {
 	// Ctrl+D to start delete
 	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(dKey)
-	if !m.confirmDelete {
-		t.Fatal("confirmDelete should be set")
+	if !m.inputActive {
+		t.Fatal("inputActive should be set")
 	}
 
-	// Press y to confirm
-	yKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}
-	m, cmd := m.Update(yKey)
+	// Type "yes" and press enter to confirm
+	for _, r := range "yes" {
+		rKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+		m, _ = m.Update(rKey)
+	}
+	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterKey)
 	if cmd == nil {
 		t.Error("remote delete should return a command")
 	}
@@ -1899,11 +1962,15 @@ func TestFBDeleteLocalDirectory(t *testing.T) {
 		}
 	}
 
-	// D then y
+	// Ctrl+D then type "yes" and press enter
 	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(dKey)
-	yKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}
-	m, cmd := m.Update(yKey)
+	for _, r := range "yes" {
+		rKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+		m, _ = m.Update(rKey)
+	}
+	enterKey := tea.KeyMsg{Type: tea.KeyEnter}
+	m, cmd := m.Update(enterKey)
 	if cmd == nil {
 		t.Fatal("should return delete command")
 	}
@@ -1976,8 +2043,8 @@ func TestFBDeleteRemoteEmptyFiles(t *testing.T) {
 	}
 	dKey := tea.KeyMsg{Type: tea.KeyCtrlD}
 	m, _ = m.Update(dKey)
-	if m.confirmDelete {
-		t.Error("Ctrl+D with empty remote files should not open confirmation")
+	if m.inputActive {
+		t.Error("Ctrl+D with empty remote files should not open input dialog")
 	}
 }
 

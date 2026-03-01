@@ -77,8 +77,6 @@ type FileBrowserModel struct {
 	inputOp     fileOpKind
 	inputPrompt string
 	inputModel  textinput.Model
-	// confirmDelete is true when waiting for y/n delete confirmation.
-	confirmDelete bool
 }
 
 // NewFileBrowserModel creates a new file browser model.
@@ -197,10 +195,6 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 		// When the text input dialog is active, route keys there.
 		if m.inputActive {
 			return m.handleInputKey(msg)
-		}
-		// When waiting for delete confirmation, handle y/n.
-		if m.confirmDelete {
-			return m.handleConfirmDelete(msg)
 		}
 
 		switch msg.String() {
@@ -332,12 +326,11 @@ func (m FileBrowserModel) Update(msg tea.Msg) (FileBrowserModel, tea.Cmd) {
 		case "ctrl+d":
 			name := m.selectedName()
 			if name != "" {
-				m.confirmDelete = true
-				m.statusMsg = fmt.Sprintf("Delete '%s'? (y/n)", name)
+				m.startInput(opDelete, fmt.Sprintf("Delete '%s'? (y/yes to confirm):", name))
 			}
 			return m, nil
 
-		case "ctrl+k":
+		case "ctrl+y":
 			m.startInput(opMkDir, "New directory name:")
 			return m, nil
 
@@ -389,6 +382,13 @@ func (m FileBrowserModel) handleInputKey(msg tea.KeyMsg) (FileBrowserModel, tea.
 	case tea.KeyEnter:
 		value := strings.TrimSpace(m.inputModel.Value())
 		m.inputActive = false
+		if m.inputOp == opDelete {
+			if strings.EqualFold(value, "y") || strings.EqualFold(value, "yes") {
+				return m.executeDelete()
+			}
+			m.statusMsg = "Delete cancelled"
+			return m, nil
+		}
 		if value == "" {
 			m.statusMsg = "Cancelled (empty name)"
 			return m, nil
@@ -398,18 +398,6 @@ func (m FileBrowserModel) handleInputKey(msg tea.KeyMsg) (FileBrowserModel, tea.
 	var cmd tea.Cmd
 	m.inputModel, cmd = m.inputModel.Update(msg)
 	return m, cmd
-}
-
-// handleConfirmDelete processes y/n key events for delete confirmation.
-func (m FileBrowserModel) handleConfirmDelete(msg tea.KeyMsg) (FileBrowserModel, tea.Cmd) {
-	m.confirmDelete = false
-	switch msg.String() {
-	case "y", "Y":
-		return m.executeDelete()
-	default:
-		m.statusMsg = "Delete cancelled"
-		return m, nil
-	}
 }
 
 // executeFileOp dispatches the actual file operation as an async tea.Cmd.
@@ -531,6 +519,10 @@ var (
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888888")).
 			Italic(true)
+
+	messageStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7D56F4")).
+			Bold(true)
 )
 
 func formatSize(size int64) string {
@@ -663,17 +655,18 @@ func (m FileBrowserModel) View() string {
 
 	// Show inline input dialog when active.
 	if m.inputActive {
-		inputLine := statusBarStyle.Render(
+		inputLine := messageStyle.Render(
 			fmt.Sprintf(" %s ", m.inputPrompt),
 		) + m.inputModel.View()
 		return lipgloss.JoinVertical(lipgloss.Left, panels, inputLine)
 	}
 
-	statusLine := statusBarStyle.Render(
-		fmt.Sprintf(" ^←/→: panels • ^T: transfer • ^K: mkdir • ^D: delete • ^R: rename | %s", m.statusMsg),
-	)
+	hints := statusBarStyle.Render(" ^←/→: panels • ^T: transfer • ^Y: mkdir • ^D: delete • ^R: rename")
+	if m.statusMsg != "" {
+		hints += statusBarStyle.Render(" | ") + messageStyle.Render(m.statusMsg)
+	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, panels, statusLine)
+	return lipgloss.JoinVertical(lipgloss.Left, panels, hints)
 }
 
 // SelectedLocalFile returns the full path of the currently selected local file.
@@ -716,10 +709,10 @@ func (m FileBrowserModel) RefreshRemoteCmd() tea.Cmd {
 	return refreshRemoteCmd(m.client, m.remoteDir)
 }
 
-// InputActive reports whether the file browser has an active text input dialog
-// or is awaiting delete confirmation, meaning it should capture all key events.
+// InputActive reports whether the file browser has an active text input dialog,
+// meaning it should capture all key events.
 func (m FileBrowserModel) InputActive() bool {
-	return m.inputActive || m.confirmDelete
+	return m.inputActive
 }
 
 // joinRemotePath joins a remote directory and a filename, avoiding double slashes.

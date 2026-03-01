@@ -122,9 +122,9 @@ func NewConnectionModelWithSSH(cfg *config.Config, sshHosts []config.SSHHost) Co
 		inputs[i] = t
 	}
 	inputs[fieldPort].SetValue("22")
-	inputs[fieldJump].Placeholder = "user@host:port (optional)"
+	inputs[fieldJump].Placeholder = "user@host:port"
 	inputs[fieldHostKeyCheck].Placeholder = "yes / no / ask (default: ask)"
-	inputs[fieldKnownHostsFile].Placeholder = "/dev/null (optional)"
+	inputs[fieldKnownHostsFile].Placeholder = "/dev/null"
 	inputs[fieldHost].Focus()
 
 	// Build list from SSH config hosts.
